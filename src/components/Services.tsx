@@ -3,6 +3,7 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   ArrowRight,
   Clock,
@@ -52,6 +53,7 @@ interface Service {
 }
 
 const Services = () => {
+  const searchParams = useSearchParams();
   const [services, setServices] = useState<Service[]>([]);
   const [serviceCategories, setServiceCategories] = useState<string[]>([]);
   const [selectedCategory, setSelectedCategory] = useState("All");
@@ -115,6 +117,17 @@ const Services = () => {
 
     fetchServices();
   }, []);
+
+  // Handle URL category parameter changes
+  useEffect(() => {
+    const categoryParam = searchParams.get("category");
+    if (categoryParam && serviceCategories.includes(categoryParam)) {
+      setSelectedCategory(categoryParam);
+    } else if (categoryParam && !serviceCategories.includes(categoryParam)) {
+      // Category in URL but not in available categories, reset to All
+      setSelectedCategory("All");
+    }
+  }, [searchParams, serviceCategories]);
 
   // === Filter Logic ===
   const filteredServices = services.filter((service) => {

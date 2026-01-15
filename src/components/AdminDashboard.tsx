@@ -29,6 +29,7 @@ import BulkCreateSlotsModal from "./admin/slots/BulkCreateSlotsModal";
 import CreateServiceModal from "./admin/services/CreateServiceModal";
 import ServicesTable from "./admin/services/ServicesTable";
 import CountersTable from "./admin/counters/CountersTable";
+import CreateCounterModal from "./admin/counters/CreateCounterModal";
 import CreateServiceDetailsModal from "./admin/service-details/CreateServiceDetailsModal";
 import ServiceDetailsTable from "./admin/service-details/ServiceDetailsTable";
 
@@ -92,6 +93,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   // NEW: Counters
   const [counters, setCounters] = useState<Counter[]>([]);
   const [loadingCounters, setLoadingCounters] = useState(false);
+  const [showCreateCounter, setShowCreateCounter] = useState(false);
 
   // NEW: Global centers (fetched once)
   const [centers, setCenters] = useState<Center[]>([]);
@@ -344,6 +346,23 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
     }
   };
 
+  const handleCreateCounter = async (payload: any) => {
+    console.log("Creating counter with payload:", payload);
+    try {
+      const result = await phpAPI.admin.createCounter(payload);
+      console.log("Counter created successfully:", result);
+      refreshCounters();
+    } catch (err: any) {
+      console.error("Failed to create counter:", err);
+      console.error("Error details:", {
+        message: err?.message,
+        stack: err?.stack,
+        response: err?.response
+      });
+      alert(err?.message || "Failed to create counter");
+    }
+  };
+
   const handleUpdateSettings = async (s: Partial<SlotSettings>) => {
     await phpAPI.admin.updateSlotSettings(s);
     refreshSlots();
@@ -580,7 +599,12 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
           <>
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-bold text-gray-900">Counters</h2>
-              {/* No create button, as no API */}
+              <button
+                onClick={() => setShowCreateCounter(true)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                + New Counter
+              </button>
             </div>
 
             {loadingCounters || loadingGlobalCenters ? (
@@ -592,6 +616,13 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                 counters={counters}
                 centers={centers}
                 refresh={refreshCounters}
+              />
+            )}
+
+            {showCreateCounter && (
+              <CreateCounterModal
+                onClose={() => setShowCreateCounter(false)}
+                onCreate={handleCreateCounter}
               />
             )}
           </>

@@ -55,6 +55,14 @@ const Hero = () => {
 
   const currentImage = backgroundImages[currentImageIndex]
 
+  const scrollToServices = (e: React.MouseEvent) => {
+    e.preventDefault()
+    const servicesSection = document.getElementById('services')
+    if (servicesSection) {
+      servicesSection.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }
+
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
       {/* Dynamic Background Image */}
@@ -100,13 +108,13 @@ const Hero = () => {
 
           {/* Action Buttons */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-16">
-            <Link
-              href="/apply"
+            <button
+              onClick={scrollToServices}
               className="inline-flex items-center px-8 py-4 bg-saffron hover:bg-orange-600 text-white font-semibold rounded-lg shadow-lg transition-all duration-300 transform hover:scale-105 hover:shadow-xl"
             >
               Start Application
               <ArrowRight className="ml-2 h-5 w-5" />
-            </Link>
+            </button>
             <Link
               href="/appointment"
               className="inline-flex items-center px-8 py-4 border-2 border-orange-500 bg-orange-500/90 backdrop-blur-sm text-white hover:bg-orange-600 font-semibold rounded-lg transition-all duration-300 shadow-lg"

@@ -181,7 +181,15 @@ class PHPAPIClient {
         errMsg = payload.message;
       }
 
-      console.error("API error:", errMsg, payload);
+      console.error("API error:", {
+        url,
+        method,
+        status: res.status,
+        statusText: res.statusText,
+        errorMessage: errMsg,
+        fullPayload: payload,
+        responseHeaders: Object.fromEntries(res.headers.entries())
+      });
       throw new Error(errMsg);
     }
 
@@ -579,11 +587,41 @@ class PHPAPIClient {
       const { data } = await this.request<any>(`/centers`);
       return { centers: data.centers || data }; // adjust based on actual response shape
     },
+
+    getCenterServices: async (centerId: number): Promise<{ services: Service[] }> => {
+      const { data } = await this.request<{ services: Service[] }>(
+        `/admin/centers/${centerId}/services`
+      );
+      return data;
+    },
     getCounters: async (): Promise<{ counters: Counter[] }> => {
       const { data } = await this.request<{ counters: Counter[] }>(
         "/admin/counters"
       );
       return data;
+    },
+
+    createCounter: async (payload: {
+      center_id: number;
+      counter_name: string;
+      service_handled?: number[];
+      is_active?: 1 | 0;
+    }): Promise<{ message: string; counterId: number }> => {
+      console.log("API Client: createCounter called with payload:", payload);
+      try {
+        const { data } = await this.request<{ message: string; counterId: number }>(
+          "/admin/counters",
+          {
+            method: "POST",
+            body: JSON.stringify(payload),
+          }
+        );
+        console.log("API Client: createCounter success:", data);
+        return data;
+      } catch (error) {
+        console.error("API Client: createCounter error:", error);
+        throw error;
+      }
     },
 
     toggleCounter: async (

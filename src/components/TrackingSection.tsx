@@ -1,50 +1,74 @@
 'use client'
 
 import React, { useState } from 'react'
-import { Search, CheckCircle, Clock, AlertCircle, FileText } from 'lucide-react'
+import { Search, CheckCircle, Clock } from 'lucide-react'
+import { phpAPI } from '@/lib/php-api-client'
+import { toast } from 'sonner'
 
 const TrackingSection = () => {
   const [trackingNumber, setTrackingNumber] = useState('')
   const [trackingResult, setTrackingResult] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(false)
 
-  const handleTrack = async () => {
-    if (!trackingNumber.trim()) return
-
-    setIsLoading(true)
-
-    // Simulate API call
-    setTimeout(() => {
-      // Mock tracking data
-      const mockData = {
-        applicationNumber: trackingNumber,
-        applicantName: 'Sample Application',
-        serviceType: 'Passport Re-issue',
-        status: 'In Process',
-        submissionDate: '2025-01-10',
-        expectedCompletion: '2025-01-17',
-        currentStage: 'Document Verification',
-        stages: [
-          { name: 'Application Submitted', completed: true, date: '2025-01-10' },
-          { name: 'Payment Verified', completed: true, date: '2025-01-10' },
-          { name: 'Document Verification', completed: false, current: true },
-          { name: 'Processing', completed: false },
-          { name: 'Ready for Collection', completed: false }
-        ]
-      }
-      setTrackingResult(mockData)
-      setIsLoading(false)
-    }, 1500)
+  const formatDate = (dateString: string): string => {
+    if (!dateString) return ''
+    const date = new Date(dateString)
+    return date.toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    })
   }
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return <CheckCircle className="h-5 w-5 text-green-500" />
-      case 'current':
-        return <Clock className="h-5 w-5 text-orange-500 animate-pulse" />
-      default:
-        return <AlertCircle className="h-5 w-5 text-gray-300" />
+  const formatStatus = (status: string): string => {
+    // Handle null/undefined
+    if (!status || status === 'null' || status === 'NULL') {
+      return 'Submitted'
+    }
+    
+    const statusMap: Record<string, string> = {
+      'submitted': 'Submitted',
+      'in-progress': 'In Progress',
+      'in_progress': 'In Progress', // Support both formats
+      'approved': 'Approved',
+      'rejected': 'Rejected',
+      'completed': 'Completed',
+      // Legacy/alternative status names
+      'under_review': 'Under Review',
+      'processing': 'Processing',
+      'ready_for_collection': 'Ready for Collection',
+      'cancelled': 'Cancelled'
+    }
+    return statusMap[status.toLowerCase()] || status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, ' ').replace(/-/g, ' ')
+  }
+
+  const handleTrack = async () => {
+    if (!trackingNumber.trim()) {
+      toast.error('Please enter an application ID')
+      return
+    }
+
+    setIsLoading(true)
+    setTrackingResult(null)
+
+    try {
+      const data = await phpAPI.trackMiscellaneousApplication(trackingNumber.trim())
+      
+      setTrackingResult({
+        applicationNumber: data.application_id,
+        serviceType: data.service_type,
+        status: data.status,
+        submissionDate: data.submitted_at,
+        expectedCompletion: data.expected_completion,
+        stages: data.timeline,
+        adminNotes: data.admin_notes || null
+      })
+    } catch (error: any) {
+      console.error('Tracking error:', error)
+      toast.error(error.message || 'Failed to track application. Please check your application ID.')
+      setTrackingResult(null)
+    } finally {
+      setIsLoading(false)
     }
   }
 
@@ -115,7 +139,7 @@ const TrackingSection = () => {
                   <div className="mt-4 md:mt-0 text-right">
                     <div className="inline-flex items-center px-4 py-2 bg-white/20 rounded-lg">
                       <Clock className="h-5 w-5 mr-2" />
-                      <span className="font-semibold">{trackingResult.status}</span>
+                      <span className="font-semibold">{formatStatus(trackingResult.status)}</span>
                     </div>
                   </div>
                 </div>
@@ -130,13 +154,30 @@ const TrackingSection = () => {
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-500">Submitted</label>
-                    <p className="text-lg font-semibold text-gray-800">{trackingResult.submissionDate}</p>
+                    <p className="text-lg font-semibold text-gray-800">{formatDate(trackingResult.submissionDate)}</p>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-500">Expected Completion</label>
-                    <p className="text-lg font-semibold text-gray-800">{trackingResult.expectedCompletion}</p>
+                    <p className="text-lg font-semibold text-gray-800">{formatDate(trackingResult.expectedCompletion)}</p>
                   </div>
                 </div>
+
+                {/* Admin Notes */}
+                {trackingResult.adminNotes && (
+                  <div className="mb-8 p-4 bg-yellow-50 border-l-4 border-yellow-400 rounded">
+                    <div className="flex items-start">
+                      <div className="flex-shrink-0">
+                        <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                      <div className="ml-3 flex-1">
+                        <h5 className="text-sm font-medium text-yellow-800 mb-1">Admin Note</h5>
+                        <p className="text-sm text-yellow-700 whitespace-pre-wrap">{trackingResult.adminNotes}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Progress Timeline */}
                 <div>
@@ -162,30 +203,15 @@ const TrackingSection = () => {
                               {stage.name}
                             </h5>
                             {stage.date && (
-                              <span className="text-sm text-gray-500">{stage.date}</span>
+                              <span className="text-sm text-gray-500">{formatDate(stage.date)}</span>
                             )}
                           </div>
-                          {stage.current && (
-                            <p className="text-sm text-orange-600 mt-1">Currently in progress</p>
-                          )}
                         </div>
                       </div>
                     ))}
                   </div>
                 </div>
 
-                {/* Actions */}
-                <div className="mt-8 pt-6 border-t border-gray-200">
-                  <div className="flex flex-col sm:flex-row gap-4">
-                    <button className="flex items-center justify-center px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors">
-                      <FileText className="h-5 w-5 mr-2" />
-                      Download Receipt
-                    </button>
-                    <button className="flex items-center justify-center px-6 py-3 border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium rounded-lg transition-colors">
-                      Update Contact Info
-                    </button>
-                  </div>
-                </div>
               </div>
             </div>
           </div>

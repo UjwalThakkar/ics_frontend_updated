@@ -20,7 +20,7 @@ const IndianEmblem: React.FC<IndianEmblemProps> = ({ size = 'md', className = ''
     <div className={`${sizeClasses[size]} ${className} relative`}>
       {/* Use the actual Government of India emblem image */}
       <Image
-        src="https://upload.wikimedia.org/wikipedia/commons/thumb/5/55/Emblem_of_India.svg/200px-Emblem_of_India.svg.png"
+        src="/logo.jpg"
         alt="Government of India Emblem"
         width={80}
         height={80}

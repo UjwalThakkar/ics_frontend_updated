@@ -324,12 +324,71 @@ function MiscellaneousFormContent() {
         filesObject
       )
 
-      toast.success(
-        `Application submitted successfully! Application ID: ${response.application_id}`
-      )
+      // Show success message with download link if PDF is available
+      if (response.filled_pdf_url || response.filled_pdf_path) {
+        // Automatically trigger download
+        try {
+          const blob = await phpAPI.downloadFilledPdf(response.application_id);
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `${response.application_id}_application_form.pdf`;
+          document.body.appendChild(a);
+          a.click();
+          window.URL.revokeObjectURL(url);
+          document.body.removeChild(a);
+          alert(`Application has been submitted successfully and the Form will be downloaded!, Your Application ID: ${response.application_id}`);          
+          // toast.success(
+          //   `Application submitted successfully! Application ID: ${response.application_id}`,
+          //   {
+          //     description: 'Your filled PDF form has been downloaded. The form is locked and ready for signing. Please sign it and bring it for physical verification.',
+          //     duration: 8000,
+          //   }
+          // );
+          image.png        } catch (downloadError: any) {
+          // If auto-download fails, show toast with manual download button
+          console.error('Auto-download failed:', downloadError);
+          toast.success(
+            `Application submitted successfully! Application ID: ${response.application_id}`,
+            {
+              duration: 10000,
+              action: {
+                label: 'Download PDF Form',
+                onClick: async () => {
+                  try {
+                    const blob = await phpAPI.downloadFilledPdf(response.application_id);
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `${response.application_id}_application_form.pdf`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                    toast.success('PDF downloaded successfully! Please sign and bring it for verification.');
+                  } catch (err: any) {
+                    toast.error(err.message || 'Failed to download PDF');
+                  }
+                }
+              }
+            }
+          );
+        }
+      } else {
+        alert(`Application has been submitted successfully and the Form will be downloaded!, Your Application ID: ${response.application_id}`);
+        // toast.success(
+        //   `Application submitted successfully! Application ID: ${response.application_id}`,
+        //   {
+        //     description: 'Your application has been submitted. You will be notified about the status via email.',
+        //     duration: 8000,
+        //   }
+        // )
+      }
 
-      // Redirect to tracking page or success page
-      router.push(`/track?application_id=${response.application_id}`)
+      // Redirect to home page after a short delay to show the success message
+      setTimeout(() => {
+        router.push('/')
+      }, 2000)
     } catch (error: any) {
       console.error('Failed to submit application:', error)
       toast.error(

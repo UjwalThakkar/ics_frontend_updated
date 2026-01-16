@@ -129,12 +129,15 @@ const Header = () => {
     setIsAuthModalOpen(true);
   };
 
-  const handleServiceCategoryClick = (category: string, e: React.MouseEvent) => {
+  const handleServiceCategoryClick = (
+    category: string,
+    e: React.MouseEvent
+  ) => {
     e.preventDefault();
     // Update URL with category parameter
     const currentPath = window.location.pathname;
     router.push(`${currentPath}?category=${encodeURIComponent(category)}`);
-    
+
     // Scroll to services section
     setTimeout(() => {
       const servicesSection = document.getElementById("services");
@@ -185,7 +188,7 @@ const Header = () => {
 
       {/* Main Header */}
       <div className="bg-white border-b border-gray-200">
-        <div className="container mx-auto px-4">
+        <div className="container mx-auto min-w-[90%] ">
           <div
             className={`flex justify-between items-center transition-all duration-300 ${
               isScrolled ? "py-4" : "py-4"
@@ -194,11 +197,11 @@ const Header = () => {
             {/* Logo and Title */}
             <Link href="/" className="flex items-center space-x-4">
               {/* Indian Emblem */}
-              <div className="bg-white p-2 rounded-lg shadow-lg border-2 border-saffron">
-                <IndianEmblem size="lg" />
+              <div className="">
+                <IndianEmblem size="2-xl" />
               </div>
 
-              <div className="flex flex-col">
+              {/* <div className="flex flex-col">
                 <h1
                   className={`font-bold text-navy transition-all duration-300 ${
                     isScrolled ? "text-lg md:text-2xl" : "text-xl md:text-2xl"
@@ -220,7 +223,7 @@ const Header = () => {
                 >
                   Indian Consular Services
                 </p>
-              </div>
+              </div> */}
             </Link>
 
             {/* Desktop Navigation */}
@@ -320,7 +323,7 @@ const Header = () => {
                   <div className="flex items-center space-x-2 px-3 py-2 bg-blue-50 rounded-md">
                     <UserIcon className="h-4 w-4 text-navy" />
                     <span className="text-sm font-medium text-navy">
-                      {user?.username || user?.email}
+                      {user?.firstName || user?.email}
                     </span>
                     {user?.role && (
                       <span className="text-xs bg-saffron text-white px-2 py-0.5 rounded">
@@ -357,12 +360,22 @@ const Header = () => {
                   </button>
                 </>
               )}
-              <Link
-                href="/apply"
+              <button
+                onClick={() => {
+                  setTimeout(() => {
+                    const servicesSection = document.getElementById("services");
+                    if (servicesSection) {
+                      servicesSection.scrollIntoView({
+                        behavior: "smooth",
+                        block: "start",
+                      });
+                    }
+                  }, 100);
+                }}
                 className="px-4 py-2 bg-saffron text-white hover:bg-orange-600 transition-colors rounded-md shadow-md"
               >
                 {t("nav.apply")}
-              </Link>
+              </button>
             </div>
 
             {/* Mobile Menu Button */}

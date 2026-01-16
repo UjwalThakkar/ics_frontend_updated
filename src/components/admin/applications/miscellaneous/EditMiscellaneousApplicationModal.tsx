@@ -4,7 +4,7 @@
 import { X, Save } from "lucide-react";
 import { MiscellaneousApplication } from "@/types/admin";
 import { phpAPI } from "@/lib/php-api-client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 interface Props {
   application: MiscellaneousApplication;
@@ -49,6 +49,42 @@ export default function EditMiscellaneousApplicationModal({
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  // Update formData when application prop changes (e.g., after refresh)
+  useEffect(() => {
+    if (application) {
+      setFormData({
+        full_name: application.full_name || "",
+        nationality: application.nationality || "",
+        father_name: application.father_name || "",
+        father_nationality: application.father_nationality || "",
+        mother_name: application.mother_name || "",
+        mother_nationality: application.mother_nationality || "",
+        date_of_birth: application.date_of_birth || "",
+        place_of_birth: application.place_of_birth || "",
+        country_of_birth: application.country_of_birth || "",
+        spouse_name: application.spouse_name || "",
+        spouse_nationality: application.spouse_nationality || "",
+        present_address_sa: application.present_address_sa || "",
+        phone_number: application.phone_number || "",
+        email_address: application.email_address || "",
+        profession: application.profession || "",
+        employer_details: application.employer_details || "",
+        visa_immigration_status: application.visa_immigration_status || "",
+        permanent_address_india: application.permanent_address_india || "",
+        passport_number: application.passport_number || "",
+        passport_validity: application.passport_validity || "",
+        passport_date_of_issue: application.passport_date_of_issue || "",
+        passport_place_of_issue: application.passport_place_of_issue || "",
+        is_registered_with_mission: application.is_registered_with_mission === 1,
+        registration_number: application.registration_number || "",
+        registration_date: application.registration_date || "",
+        status: application.status || "submitted", // Ensure status is set
+        admin_notes: application.admin_notes || "",
+      });
+    }
+  }, [application]);
 
   const handleChange = (
     e: React.ChangeEvent<
@@ -72,20 +108,31 @@ export default function EditMiscellaneousApplicationModal({
       const payload: any = { ...formData };
       payload.is_registered_with_mission = formData.is_registered_with_mission ? 1 : 0;
 
-      // Remove empty strings and convert to null
+      // Remove empty strings and convert to null (but keep status even if empty)
       Object.keys(payload).forEach((key) => {
-        if (payload[key] === "") {
+        if (payload[key] === "" && key !== "status") {
           payload[key] = null;
         }
       });
+
+      // Ensure status is included in payload
+      if (!payload.status) {
+        payload.status = formData.status || "submitted";
+      }
+
+      console.log("Updating application with payload:", payload);
+      console.log("Status being sent:", payload.status);
 
       await phpAPI.admin.updateMiscellaneousApplication(
         application.application_id,
         payload
       );
+      
+      console.log("Application updated successfully");
       onSave();
       onClose();
     } catch (err: any) {
+      console.error("Update error:", err);
       setError(err.message || "Failed to update application");
     } finally {
       setSaving(false);
@@ -127,7 +174,7 @@ export default function EditMiscellaneousApplicationModal({
               className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="submitted">Submitted</option>
-              <option value="under_review">Under Review</option>
+              <option value="in-progress">In Progress</option>
               <option value="approved">Approved</option>
               <option value="rejected">Rejected</option>
               <option value="completed">Completed</option>

@@ -83,8 +83,20 @@ export default function MiscellaneousApplicationsManagement() {
     setShowDetailsModal(true);
   };
 
-  const handleEdit = (app: MiscellaneousApplication) => {
-    setSelectedApplication(app);
+  const handleEdit = async (app: MiscellaneousApplication) => {
+    // Fetch fresh data before opening edit modal
+    try {
+      const freshData = await phpAPI.admin.getMiscellaneousApplicationDetails(app.application_id);
+      if (freshData.application) {
+        setSelectedApplication(freshData.application as MiscellaneousApplication);
+      } else {
+        setSelectedApplication(app);
+      }
+    } catch (err) {
+      console.error('Failed to fetch fresh application data:', err);
+      // Use existing data if fetch fails
+      setSelectedApplication(app);
+    }
     setShowEditModal(true);
   };
 
@@ -95,8 +107,9 @@ export default function MiscellaneousApplicationsManagement() {
     }
   };
 
-  const handleSave = () => {
-    fetchApplications();
+  const handleSave = async () => {
+    // Refresh applications list to get updated data
+    await fetchApplications();
     setShowEditModal(false);
     setSelectedApplication(null);
   };

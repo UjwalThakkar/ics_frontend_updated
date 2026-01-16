@@ -20,8 +20,8 @@ const Hero = () => {
       name: 'Lotus Temple, Delhi'
     },
     {
-      url: 'https://images.unsplash.com/photo-1548013146-72479768bada?ixlib=rb-4.0.3&auto=format&fit=crop&w=2000&q=80',
-      name: 'Akshardham Temple, Delhi'
+      url: 'https://s7ap1.scene7.com/is/image/incredibleindia/wular-lake-srinagar-jammu-&-kashmir-2-attr-hero?qlt=82&ts=1726816048336',
+      name: 'Wular Lake, Jammu and Kashmir'
     },
     {
       url: 'https://images.unsplash.com/photo-1605649487212-183049fb75b6?ixlib=rb-4.0.3&auto=format&fit=crop&w=2000&q=80',

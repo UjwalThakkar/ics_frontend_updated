@@ -904,6 +904,8 @@ class PHPAPIClient {
     message: string;
     files_uploaded: number;
     service_title: string;
+    filled_pdf_path?: string;
+    filled_pdf_url?: string;
   }> {
     const formData = new FormData();
 
@@ -955,6 +957,69 @@ class PHPAPIClient {
     }
 
     return response.data || response;
+  }
+
+  /**
+   * Download filled PDF form for a miscellaneous application
+   * @param applicationId The application ID
+   */
+  async downloadFilledPdf(applicationId: string): Promise<Blob> {
+    const url = `${API_BASE_URL}/applications/miscellaneous/${applicationId}/filled-pdf`;
+    const headers: Record<string, string> = {};
+
+    const csrf = this.getCsrfToken();
+    if (csrf) {
+      headers['X-CSRF-Token'] = csrf;
+    }
+
+    const res = await fetch(url, {
+      method: 'GET',
+      credentials: 'include',
+      headers,
+    });
+
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({ error: 'Failed to download PDF' }));
+      throw new Error(error.error || 'Failed to download PDF');
+    }
+
+    return await res.blob();
+  }
+
+  /**
+   * Track miscellaneous application status
+   * @param applicationId The application ID
+   */
+  async trackMiscellaneousApplication(applicationId: string): Promise<{
+    application_id: string;
+    status: string;
+    service_type: string;
+    submitted_at: string;
+    expected_completion: string;
+    timeline: Array<{
+      name: string;
+      completed: boolean;
+      current: boolean;
+      date?: string;
+    }>;
+    admin_notes?: string | null;
+  }> {
+    // Pass just the endpoint path, not the full URL
+    const { data } = await this.request<{
+      application_id: string;
+      status: string;
+      service_type: string;
+      submitted_at: string;
+      expected_completion: string;
+      timeline: Array<{
+        name: string;
+        completed: boolean;
+        current: boolean;
+        date?: string;
+      }>;
+      admin_notes?: string | null;
+    }>(`/applications/miscellaneous/${applicationId}/track`);
+    return data;
   }
 
   /* --------------------------------------------------------------- */

@@ -8,11 +8,13 @@ export default function StatusBadge({ status }: Props) {
     submitted: "bg-yellow-100 text-yellow-800",
     pending: "bg-yellow-100 text-yellow-800",
     "in-progress": "bg-blue-100 text-blue-800",
+    "in_progress": "bg-blue-100 text-blue-800", // Support both formats
     under_review: "bg-blue-100 text-blue-800",
     processing: "bg-blue-100 text-blue-800",
     approved: "bg-green-100 text-green-800",
     rejected: "bg-red-100 text-red-800",
     scheduled: "bg-blue-100 text-blue-800",
+    ready_for_collection: "bg-purple-100 text-purple-800",
     completed: "bg-green-100 text-green-800",
     cancelled: "bg-red-100 text-red-800",
     "no-show": "bg-gray-100 text-gray-800",
@@ -24,10 +26,16 @@ export default function StatusBadge({ status }: Props) {
   const formatStatus = (status: string): string => {
     const statusMap: Record<string, string> = {
       'in-progress': 'In Progress',
+      'in_progress': 'In Progress',
       'under_review': 'Under Review',
+      'ready_for_collection': 'Ready for Collection',
       'no-show': 'No Show',
     };
-    return statusMap[status.toLowerCase()] || status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, ' ');
+    // Handle null/undefined/empty status
+    if (!status || status === 'null' || status === 'NULL') {
+      return 'Submitted'; // Default fallback
+    }
+    return statusMap[status.toLowerCase()] || status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, ' ').replace(/-/g, ' ');
   };
 
   return (

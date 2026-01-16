@@ -13,6 +13,13 @@ export const initSentry = () => {
     return
   }
 
+  const dsn = process.env.SENTRY_DSN || process.env.NEXT_PUBLIC_SENTRY_DSN
+
+  if (!dsn) {
+    console.warn('Sentry DSN not configured - error monitoring disabled')
+    return
+  }
+
   Sentry.init({
     dsn,
     environment: process.env.NODE_ENV,

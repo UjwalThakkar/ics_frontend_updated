@@ -1,11 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Disable TypeScript and ESLint checking during build for faster deployment
+  // Disable TypeScript checking during build for faster deployment
+  // Note: eslint config removed - Next.js 16+ doesn't support it in next.config
   typescript: {
     ignoreBuildErrors: true,
-  },
-  eslint: {
-    ignoreDuringBuilds: true,
   },
   images: {
     unoptimized: true,

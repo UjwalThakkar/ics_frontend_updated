@@ -13,13 +13,6 @@ export const initSentry = () => {
     return
   }
 
-  const dsn = process.env.SENTRY_DSN || process.env.NEXT_PUBLIC_SENTRY_DSN
-
-  if (!dsn) {
-    console.warn('Sentry DSN not configured - error monitoring disabled')
-    return
-  }
-
   Sentry.init({
     dsn,
     environment: process.env.NODE_ENV,
@@ -243,39 +236,60 @@ export class ConsularErrorTracker {
 
 export class PerformanceMonitor {
   // Track database query performance
+  // Note: startTransaction was deprecated in Sentry v10+
+  // Using breadcrumbs for now as a simpler alternative
   static startDatabaseTransaction(operation: string, collection?: string) {
-    return Sentry.startTransaction({
-      name: `db.${operation}`,
-      op: 'db.query',
+    Sentry.addBreadcrumb({
+      category: 'performance',
+      message: `Database operation: ${operation}`,
+      level: 'info',
       data: {
         operation,
         collection
       }
     })
+    // Return a mock object for compatibility with existing code
+    return {
+      finish: () => {},
+      setData: () => {},
+      setTag: () => {}
+    }
   }
 
   // Track API endpoint performance
   static startAPITransaction(endpoint: string, method: string) {
-    return Sentry.startTransaction({
-      name: `${method} ${endpoint}`,
-      op: 'http.server',
+    Sentry.addBreadcrumb({
+      category: 'performance',
+      message: `API call: ${method} ${endpoint}`,
+      level: 'info',
       data: {
         endpoint,
         method
       }
     })
+    return {
+      finish: () => {},
+      setData: () => {},
+      setTag: () => {}
+    }
   }
 
   // Track application submission performance
   static startApplicationTransaction(serviceType: string, step: string) {
-    return Sentry.startTransaction({
-      name: `application.${serviceType}.${step}`,
-      op: 'application.process',
+    Sentry.addBreadcrumb({
+      category: 'performance',
+      message: `Application: ${serviceType} - ${step}`,
+      level: 'info',
       data: {
         serviceType,
         step
       }
     })
+    return {
+      finish: () => {},
+      setData: () => {},
+      setTag: () => {}
+    }
   }
 
   // Track page load performance

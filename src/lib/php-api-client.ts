@@ -65,6 +65,10 @@ import {
   ServiceDetails,
   AdminServiceDetailsResponse,
   Counter,
+  AdminMiscellaneousApplicationsResponse,
+  AdminMiscellaneousApplicationDetailsResponse,
+  ApplicationFile,
+  AdminMiscellaneousApplicationStats,
 } from "@/types/admin";
 
 /* -------------------------- OCR TYPES --------------------------- */
@@ -737,7 +741,221 @@ class PHPAPIClient {
       );
       return data;
     },
+
+    /** Miscellaneous Applications */
+    getMiscellaneousApplications: async (params: {
+      page?: number;
+      limit?: number;
+      status?: string;
+      service_id?: number;
+      user_id?: number;
+      date_from?: string;
+      date_to?: string;
+      search?: string;
+      sort_by?: string;
+      sort_order?: 'ASC' | 'DESC';
+    }): Promise<AdminMiscellaneousApplicationsResponse> => {
+      const query = new URLSearchParams(
+        Object.entries(params)
+          .filter(([, v]) => v != null && v !== "")
+          .map(([k, v]) => [k, String(v)])
+      ).toString();
+
+      const { data } = await this.request<AdminMiscellaneousApplicationsResponse>(
+        `/admin/applications/miscellaneous?${query}`
+      );
+      return data;
+    },
+
+    getMiscellaneousApplicationDetails: async (
+      applicationId: string
+    ): Promise<AdminMiscellaneousApplicationDetailsResponse> => {
+      const { data } = await this.request<AdminMiscellaneousApplicationDetailsResponse>(
+        `/admin/applications/miscellaneous/${applicationId}`
+      );
+      return data;
+    },
+
+    updateMiscellaneousApplication: async (
+      applicationId: string,
+      payload: Partial<{
+        full_name: string;
+        nationality: string;
+        father_name: string;
+        father_nationality: string;
+        mother_name: string;
+        mother_nationality: string;
+        date_of_birth: string;
+        place_of_birth: string;
+        country_of_birth: string;
+        spouse_name: string;
+        spouse_nationality: string;
+        present_address_sa: string;
+        phone_number: string;
+        email_address: string;
+        profession: string;
+        employer_details: string;
+        visa_immigration_status: string;
+        permanent_address_india: string;
+        passport_number: string;
+        passport_validity: string;
+        passport_date_of_issue: string;
+        passport_place_of_issue: string;
+        is_registered_with_mission: boolean;
+        registration_number: string;
+        registration_date: string;
+        status: string;
+        admin_notes: string;
+      }>
+    ): Promise<{ message: string }> => {
+      const { data } = await this.request<{ message: string }>(
+        `/admin/applications/miscellaneous/${applicationId}`,
+        {
+          method: "PUT",
+          body: JSON.stringify(payload),
+        }
+      );
+      return data;
+    },
+
+    getMiscellaneousApplicationFile: async (
+      applicationId: string,
+      fileId: string
+    ): Promise<{ file: ApplicationFile }> => {
+      const { data } = await this.request<{ file: ApplicationFile }>(
+        `/admin/applications/miscellaneous/${applicationId}/files/${fileId}`
+      );
+      return data;
+    },
+
+    downloadMiscellaneousApplicationFile: async (
+      applicationId: string,
+      fileId: string
+    ): Promise<Blob> => {
+      const url = `${API_BASE_URL}/admin/applications/miscellaneous/${applicationId}/files/${fileId}/download`;
+      const headers: Record<string, string> = {};
+      
+      const csrf = this.getCsrfToken();
+      if (csrf) {
+        headers['X-CSRF-Token'] = csrf;
+      }
+
+      const res = await fetch(url, {
+        method: 'GET',
+        credentials: 'include',
+        headers,
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || 'Failed to download file');
+      }
+
+      return res.blob();
+    },
+
+    getMiscellaneousApplicationStats: async (): Promise<{
+      stats: AdminMiscellaneousApplicationStats;
+    }> => {
+      const { data } = await this.request<{ stats: AdminMiscellaneousApplicationStats }>(
+        `/admin/applications/miscellaneous/stats`
+      );
+      return data;
+    },
   };
+
+  /* --------------------------------------------------------------- */
+  /* Miscellaneous Applications (User)                               */
+  /* --------------------------------------------------------------- */
+
+  /**
+   * Submit miscellaneous application
+   */
+  async submitMiscellaneousApplication(payload: {
+    service_id: number;
+    full_name: string;
+    nationality: string;
+    father_name?: string;
+    father_nationality?: string;
+    mother_name?: string;
+    mother_nationality?: string;
+    date_of_birth?: string;
+    place_of_birth?: string;
+    country_of_birth?: string;
+    spouse_name?: string;
+    spouse_nationality?: string;
+    present_address_sa?: string;
+    phone_number: string;
+    email_address: string;
+    profession?: string;
+    employer_details?: string;
+    visa_immigration_status?: string;
+    permanent_address_india?: string;
+    passport_number?: string;
+    passport_validity?: string;
+    passport_date_of_issue?: string;
+    passport_place_of_issue?: string;
+    is_registered_with_mission?: boolean;
+    registration_number?: string;
+    registration_date?: string;
+  }, files?: { [key: string]: File | File[] }): Promise<{
+    success: boolean;
+    application_id: string;
+    message: string;
+    files_uploaded: number;
+    service_title: string;
+  }> {
+    const formData = new FormData();
+
+    // Add all form fields
+    Object.entries(payload).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        if (typeof value === 'boolean') {
+          formData.append(key, value ? '1' : '0');
+        } else {
+          formData.append(key, String(value));
+        }
+      }
+    });
+
+    // Add files
+    if (files) {
+      Object.entries(files).forEach(([fieldName, fileOrFiles]) => {
+        if (Array.isArray(fileOrFiles)) {
+          fileOrFiles.forEach((file) => {
+            formData.append(fieldName + '[]', file);
+          });
+        } else {
+          formData.append(fieldName, fileOrFiles);
+        }
+      });
+    }
+
+    const url = `${API_BASE_URL}/applications/miscellaneous/submit`;
+    const headers: Record<string, string> = {};
+
+    // Add CSRF token
+    const csrf = this.getCsrfToken();
+    if (csrf) {
+      headers['X-CSRF-Token'] = csrf;
+    }
+
+    const res = await fetch(url, {
+      method: 'POST',
+      body: formData,
+      credentials: 'include',
+      headers,
+    });
+
+    const response = await res.json();
+
+    if (!res.ok || !response.success) {
+      const errMsg = response.error || response.message || 'Failed to submit application';
+      throw new Error(errMsg);
+    }
+
+    return response.data || response;
+  }
 
   /* --------------------------------------------------------------- */
   /* OCR Document Extraction                                         */

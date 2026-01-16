@@ -32,6 +32,7 @@ import CountersTable from "./admin/counters/CountersTable";
 import CreateCounterModal from "./admin/counters/CreateCounterModal";
 import CreateServiceDetailsModal from "./admin/service-details/CreateServiceDetailsModal";
 import ServiceDetailsTable from "./admin/service-details/ServiceDetailsTable";
+import MiscellaneousApplicationsManagement from "./admin/applications/miscellaneous/MiscellaneousApplicationsManagement";
 
 interface AdminDashboardProps {
   onLogout: () => void;
@@ -446,6 +447,10 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
               />
             )}
           </>
+        )}
+
+        {activeTab === "miscellaneous-applications" && (
+          <MiscellaneousApplicationsManagement />
         )}
 
         {activeTab === "appointments" && (

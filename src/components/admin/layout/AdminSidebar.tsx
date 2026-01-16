@@ -11,13 +11,13 @@ import {
 
 const tabs = [
   // { id: "dashboard", label: "Dashboard", icon: Home },
-  { id: "applications", label: "Applications", icon: FileText },
+  { id: "miscellaneous-applications", label: "Miscellaneous Applications", icon: FileText },
   { id: "appointments", label: "Appointments", icon: Calendar },
-  { id: "users", label: "Users", icon: Users },
   { id: "services", label: "Services", icon: FileText },
   { id: "slots", label: "Slot Settings", icon: Clock },
   { id: "counters", label: "Counter Settings", icon: Table },
   { id: "service-details", label: "Service Details", icon: FileText },
+  // { id: "users", label: "Users", icon: Users },
   // { id: "settings", label: "Settings", icon: Settings },
 ];
 

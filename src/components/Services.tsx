@@ -326,6 +326,8 @@ const Services = () => {
                           ? `/apply/VisaForm?service=${service.id}`
                           : service.category === "Passport"
                           ? `/apply/PassportForm?service=${service.id}`
+                          : service.category === "Miscellaneous"
+                          ? `/apply/MiscellaneousForm?service=${service.id}`
                           : `/apply?service=${service.id}`
                       }
                       className="flex-1 text-center px-3 py-2 border border-green-600 text-green-600 rounded-lg hover:bg-green-50 text-sm font-medium"

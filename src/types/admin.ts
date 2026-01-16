@@ -251,3 +251,91 @@ export interface AdminUpdateServiceDetailsResponse {
 export interface AdminDeleteServiceDetailsResponse {
   message: string;
 }
+
+// Miscellaneous Applications Types
+export interface MiscellaneousApplication {
+  id: number;
+  application_id: string;
+  user_id: number;
+  service_id: number;
+  service_title: string;
+  service_category: string;
+  full_name: string;
+  nationality: string;
+  father_name?: string;
+  father_nationality?: string;
+  mother_name?: string;
+  mother_nationality?: string;
+  date_of_birth?: string;
+  place_of_birth?: string;
+  country_of_birth?: string;
+  spouse_name?: string;
+  spouse_nationality?: string;
+  present_address_sa?: string;
+  phone_number?: string;
+  email_address?: string;
+  profession?: string;
+  employer_details?: string;
+  visa_immigration_status?: string;
+  permanent_address_india?: string;
+  passport_number?: string;
+  passport_validity?: string;
+  passport_date_of_issue?: string;
+  passport_place_of_issue?: string;
+  is_registered_with_mission: 0 | 1;
+  registration_number?: string;
+  registration_date?: string;
+  status: 'submitted' | 'in-progress' | 'approved' | 'rejected' | 'completed';
+  admin_notes?: string;
+  submitted_at: string;
+  updated_at: string;
+  user_first_name?: string;
+  user_last_name?: string;
+  user_email?: string;
+  user_phone?: string;
+  file_count?: number;
+}
+
+export interface ApplicationFile {
+  id: number;
+  file_id: string;
+  application_id: string;
+  file_name: string;
+  original_name: string;
+  file_path: string;
+  file_type: string;
+  file_size: number;
+  mime_type: string;
+  document_type: string;
+  uploaded_by?: number;
+  uploaded_at: string;
+}
+
+export interface MiscellaneousApplicationDetails {
+  application: MiscellaneousApplication;
+  files: ApplicationFile[];
+}
+
+export interface AdminMiscellaneousApplicationsResponse {
+  applications: MiscellaneousApplication[];
+  pagination: Pagination;
+}
+
+export interface AdminMiscellaneousApplicationDetailsResponse {
+  application: MiscellaneousApplication;
+  files: ApplicationFile[];
+}
+
+export interface AdminMiscellaneousApplicationStats {
+  total: number;
+  by_status: {
+    [key: string]: number;
+  };
+  this_month: number;
+  today: number;
+  by_service: Array<{
+    service_id: number;
+    title: string;
+    count: number;
+  }>;
+}

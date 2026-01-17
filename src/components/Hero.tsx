@@ -12,11 +12,11 @@ const Hero = () => {
       name: 'Golden Temple, Amritsar'
     },
     {
-      url: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&auto=format&fit=crop&w=2000&q=80',
+      url: 'https://www.incredibleindia.gov.in/content/dam/incredible-india/images/trips/tamil-nadu/madurai/4-days-madurai-rameshwaram-kanniyakumari-tour/meenakshi-amman-temple-madurai-tamil-nadu-1-tri-iter-day1.jpg',
       name: 'Meenakshi Temple, Madurai'
     },
     {
-      url: 'https://images.unsplash.com/photo-1540961047393-dd4f3c2b4c47?ixlib=rb-4.0.3&auto=format&fit=crop&w=2000&q=80',
+      url: 'https://s7ap1.scene7.com/is/image/incredibleindia/lotus-temple-delhi-1-attr-hero?qlt=82&ts=1742182268849',
       name: 'Lotus Temple, Delhi'
     },
     {
@@ -24,8 +24,8 @@ const Hero = () => {
       name: 'Wular Lake, Jammu and Kashmir'
     },
     {
-      url: 'https://images.unsplash.com/photo-1605649487212-183049fb75b6?ixlib=rb-4.0.3&auto=format&fit=crop&w=2000&q=80',
-      name: 'Somnath Temple, Gujarat'
+      url: 'https://s7ap1.scene7.com/is/image/incredibleindia/1-amar-mahal-palace-jammu-jk-attr-hero?qlt=82&ts=1742168423832',
+      name: 'Amar Mahal Palace, jammu'
     }
   ]
 
@@ -117,13 +117,13 @@ const Hero = () => {
             </button>
             <Link
               href="/appointment"
-              className="inline-flex items-center px-8 py-4 border-2 border-orange-500 bg-orange-500/90 backdrop-blur-sm text-white hover:bg-orange-600 font-semibold rounded-lg transition-all duration-300 shadow-lg"
+              className="inline-flex items-center px-8 py-4 border-orange-500 bg-orange-500/90  text-white hover:bg-orange-600 font-semibold rounded-lg transition-all duration-300 shadow-lg hover:scale-105"
             >
               Book Appointment
             </Link>
             <Link
               href="/track"
-              className="inline-flex items-center px-8 py-4 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg shadow-lg transition-all duration-300"
+              className="inline-flex items-center px-8 py-4 bg-green-600 text-white font-semibold rounded-lg shadow-lg transition-all duration-300 hover:scale-105"
             >
               Track Application
             </Link>

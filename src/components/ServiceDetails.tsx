@@ -6,7 +6,6 @@ import Link from "next/link";
 import {
   ArrowLeft,
   Clock,
-  DollarSign,
   FileText,
   CheckCircle,
   Phone,
@@ -15,6 +14,7 @@ import {
   CalendarDays,
   Download,
   AlertCircle,
+  HandCoins,
 } from "lucide-react";
 
 interface Service {
@@ -39,13 +39,14 @@ interface ServiceDetailsProps {
   service: Service;
 }
 const ServiceDetails: React.FC<ServiceDetailsProps> = ({ service }) => {
+  console.log("prop value", service);
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-gradient-to-r from-blue-900 to-blue-800 text-white">
+      <div className="bg-linear-to-r from-blue-900 to-blue-800 text-white">
         <div className="container mx-auto px-4 py-8">
           <Link
-            href="/services"
+            href="/"
             className="inline-flex items-center text-blue-200 hover:text-white mb-4 transition-colors"
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
@@ -86,7 +87,7 @@ const ServiceDetails: React.FC<ServiceDetailsProps> = ({ service }) => {
                 </div>
 
                 <div className="flex items-start space-x-3">
-                  <DollarSign className="h-6 w-6 text-green-600 mt-1" />
+                  <HandCoins className="h-6 w-6 text-green-600 mt-1" />
                   <div>
                     <h3 className="font-medium text-gray-900">Fees</h3>
                     <div className="text-gray-600">
@@ -240,7 +241,15 @@ const ServiceDetails: React.FC<ServiceDetailsProps> = ({ service }) => {
 
               <div className="space-y-3">
                 <Link
-                  href={`/apply?service=${service.id}`}
+                  href={
+                    service.category === "Visa"
+                      ? `/apply/VisaForm?service=${service.id}`
+                      : service.category === "Passport"
+                        ? `/apply/PassportForm?service=${service.id}`
+                        : service.category === "Miscellaneous"
+                          ? `/apply/MiscellaneousForm?service=${service.service_id}`
+                          : `/`
+                  }
                   className="w-full bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center font-medium"
                 >
                   Apply Now

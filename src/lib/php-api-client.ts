@@ -598,6 +598,94 @@ class PHPAPIClient {
       );
       return data;
     },
+
+    // Verification Centers Management
+    getCenters: async (params?: {
+      page?: number;
+      limit?: number;
+    }): Promise<{
+      centers: Center[];
+      pagination?: Pagination;
+    }> => {
+      const query = params
+        ? new URLSearchParams(
+            Object.entries(params)
+              .filter(([, v]) => v != null)
+              .map(([k, v]) => [k, String(v)])
+          ).toString()
+        : "";
+      const { data } = await this.request<{
+        centers: Center[];
+        pagination?: Pagination;
+      }>(`/admin/centers${query ? `?${query}` : ""}`);
+      return data;
+    },
+
+    createCenter: async (payload: {
+      name: string;
+      address: string;
+      city: string;
+      country: string;
+      state?: string;
+      postalCode?: string;
+      phone?: string;
+      email?: string;
+      operatingHours?: Record<string, string>;
+      providesServices?: number[];
+      hasCounters?: number[];
+      latitude?: number;
+      longitude?: number;
+      isActive?: boolean;
+      displayOrder?: number;
+    }): Promise<{ message: string; centerId: number }> => {
+      const { data } = await this.request<{ message: string; centerId: number }>(
+        "/admin/centers",
+        {
+          method: "POST",
+          body: JSON.stringify(payload),
+        }
+      );
+      return data;
+    },
+
+    updateCenter: async (
+      id: number,
+      payload: Partial<{
+        name: string;
+        address: string;
+        city: string;
+        state: string;
+        country: string;
+        postalCode: string;
+        phone: string;
+        email: string;
+        operatingHours: Record<string, string>;
+        providesServices: number[];
+        latitude: number;
+        longitude: number;
+        isActive: boolean;
+        displayOrder: number;
+      }>
+    ): Promise<{ message: string }> => {
+      const { data } = await this.request<{ message: string }>(
+        `/admin/centers/${id}`,
+        {
+          method: "PUT",
+          body: JSON.stringify(payload),
+        }
+      );
+      return data;
+    },
+
+    toggleCenter: async (
+      id: number
+    ): Promise<{ message: string; isActive: boolean }> => {
+      const { data } = await this.request<{
+        message: string;
+        isActive: boolean;
+      }>(`/admin/centers/${id}/toggle`, { method: "POST" });
+      return data;
+    },
     getCounters: async (): Promise<{ counters: Counter[] }> => {
       const { data } = await this.request<{ counters: Counter[] }>(
         "/admin/counters"

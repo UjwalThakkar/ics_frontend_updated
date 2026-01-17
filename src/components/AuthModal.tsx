@@ -19,6 +19,7 @@ interface AuthModalProps {
   onClose: () => void;
   type: "login" | "register";
   onSwitchType: (type: "login" | "register") => void;
+  onSuccessRedirect?: () => void;
 }
 
 const AuthModal: React.FC<AuthModalProps> = ({
@@ -26,6 +27,7 @@ const AuthModal: React.FC<AuthModalProps> = ({
   onClose,
   type,
   onSwitchType,
+  onSuccessRedirect,
 }) => {
   const { login, register } = useAuth();
   const [formData, setFormData] = useState({
@@ -77,6 +79,9 @@ const AuthModal: React.FC<AuthModalProps> = ({
           setTimeout(() => {
             onClose();
             resetForm();
+            if (onSuccessRedirect) {
+              onSuccessRedirect();
+            }
           }, 2000);
         } else {
           console.error("registration failed:", result.error);
@@ -99,6 +104,9 @@ const AuthModal: React.FC<AuthModalProps> = ({
           setTimeout(() => {
             onClose();
             resetForm();
+            if (onSuccessRedirect) {
+              onSuccessRedirect();
+            }
           }, 2000);
         } else {
           console.error("❌ Login failed:", result.error);
@@ -152,7 +160,7 @@ const AuthModal: React.FC<AuthModalProps> = ({
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-md relative">
         {/* Header */}
-        <div className="bg-gradient-to-r from-navy to-blue-700 text-white p-6 rounded-t-xl">
+        <div className="bg-linear-to-r from-blue-700 to-blue-500 text-white p-6 rounded-t-xl">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">

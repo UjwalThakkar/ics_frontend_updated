@@ -33,6 +33,8 @@ import CreateCounterModal from "./admin/counters/CreateCounterModal";
 import CreateServiceDetailsModal from "./admin/service-details/CreateServiceDetailsModal";
 import ServiceDetailsTable from "./admin/service-details/ServiceDetailsTable";
 import MiscellaneousApplicationsManagement from "./admin/applications/miscellaneous/MiscellaneousApplicationsManagement";
+import VerificationCentersTable from "./admin/verification-centers/VerificationCentersTable";
+import CreateVerificationCenterModal from "./admin/verification-centers/CreateVerificationCenterModal";
 
 interface AdminDashboardProps {
   onLogout: () => void;
@@ -100,6 +102,11 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const [centers, setCenters] = useState<Center[]>([]);
   const [loadingGlobalCenters, setLoadingGlobalCenters] = useState(true);
 
+  // NEW: Verification Centers
+  const [verificationCenters, setVerificationCenters] = useState<Center[]>([]);
+  const [loadingVerificationCenters, setLoadingVerificationCenters] = useState(false);
+  const [showCreateVerificationCenter, setShowCreateVerificationCenter] = useState(false);
+
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   const refreshAppointments = () => setRefreshTrigger((p) => p + 1);
@@ -107,6 +114,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const refreshServices = () => setRefreshTrigger((p) => p + 1);
   const refreshCounters = () => setRefreshTrigger((p) => p + 1);
   const refreshServiceDetails = () => setRefreshTrigger((p) => p + 1);
+  const refreshVerificationCenters = () => setRefreshTrigger((p) => p + 1);
 
 
 
@@ -177,6 +185,24 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
         setError("Failed to load counters");
       } finally {
         setLoadingCounters(false);
+      }
+    };
+    fetch();
+  }, [activeTab, refreshTrigger]);
+
+  // NEW: Fetch Verification Centers
+  useEffect(() => {
+    if (activeTab !== "verification-centers") return;
+
+    const fetch = async () => {
+      setLoadingVerificationCenters(true);
+      try {
+        const res = await phpAPI.admin.getCenters();
+        setVerificationCenters(res.centers || []);
+      } catch {
+        setError("Failed to load verification centers");
+      } finally {
+        setLoadingVerificationCenters(false);
       }
     };
     fetch();
@@ -364,6 +390,18 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
     }
   };
 
+  const handleCreateVerificationCenter = async (payload: any) => {
+    try {
+      await phpAPI.admin.createCenter(payload);
+      refreshVerificationCenters();
+      // Also refresh global centers list
+      const res = await phpAPI.admin.getActiveCenters();
+      setCenters(res.centers || []);
+    } catch (err: any) {
+      alert(err?.message || "Failed to create verification center");
+    }
+  };
+
   const handleUpdateSettings = async (s: Partial<SlotSettings>) => {
     await phpAPI.admin.updateSlotSettings(s);
     refreshSlots();
@@ -467,6 +505,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
               dateTo={apptDateTo}
               setDateTo={setApptDateTo}
               setPage={setApptPage}
+              centers={centers}
             />
             {loadingAppts && (
               <div className="flex justify-center py-12">
@@ -628,6 +667,38 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
               <CreateCounterModal
                 onClose={() => setShowCreateCounter(false)}
                 onCreate={handleCreateCounter}
+              />
+            )}
+          </>
+        )}
+
+        {activeTab === "verification-centers" && (
+          <>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-gray-900">Verification Centers</h2>
+              <button
+                onClick={() => setShowCreateVerificationCenter(true)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                + New Center
+              </button>
+            </div>
+
+            {loadingVerificationCenters ? (
+              <div className="flex justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+              </div>
+            ) : (
+              <VerificationCentersTable
+                centers={verificationCenters}
+                refresh={refreshVerificationCenters}
+              />
+            )}
+
+            {showCreateVerificationCenter && (
+              <CreateVerificationCenterModal
+                onClose={() => setShowCreateVerificationCenter(false)}
+                onCreate={handleCreateVerificationCenter}
               />
             )}
           </>

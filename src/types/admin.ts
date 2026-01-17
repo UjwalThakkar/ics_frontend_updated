@@ -208,8 +208,19 @@ export interface Center {
   address?: string;
   state?: string;
   country?: string;
+  postal_code?: string;
   phone?: string;
-  // add any other fields your GET /centers/active endpoint returns
+  email?: string;
+  operating_hours?: Record<string, string> | string;
+  provides_services?: number[] | string;
+  has_counters?: number[] | string;
+  latitude?: number;
+  longitude?: number;
+  is_active?: 0 | 1 | boolean;
+  display_order?: number;
+  counter_count?: number;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface Counter {

@@ -1,5 +1,6 @@
 // src/components/admin/appointments/AppointmentFilters.tsx
 import { Search } from "lucide-react";
+import { Center } from "@/types/admin";
 
 interface Props {
   search: string;
@@ -13,13 +14,14 @@ interface Props {
   dateTo: string;
   setDateTo: (s: string) => void;
   setPage: (p: number) => void;
+  centers?: Center[];
 }
 
 const today = new Date().toISOString().split("T")[0];
 
 export default function AppointmentFilters({
   search, setSearch, status, setStatus, centerId, setCenterId,
-  dateFrom, setDateFrom, dateTo, setDateTo, setPage
+  dateFrom, setDateFrom, dateTo, setDateTo, setPage, centers = []
 }: Props) {
   return (
     <div className="flex justify-between items-center mb-6">
@@ -52,7 +54,11 @@ export default function AppointmentFilters({
           className="px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option value="">All Centers</option>
-          <option value="1">Mumbai Consular Center</option>
+          {centers.map((center) => (
+            <option key={center.center_id} value={center.center_id}>
+              {center.name} {center.city && `(${center.city})`}
+            </option>
+          ))}
         </select>
         <input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1); }} className="px-3 py-2 border rounded-lg text-sm" />
         <input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1); }} className="px-3 py-2 border rounded-lg text-sm" />

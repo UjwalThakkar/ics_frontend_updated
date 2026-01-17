@@ -7,10 +7,11 @@ import { useSearchParams } from "next/navigation";
 import {
   ArrowRight,
   Clock,
-  DollarSign,
+  HandCoins,
   FileText,
   Search,
   Filter,
+  
 } from "lucide-react";
 import { phpAPI } from "@/lib/php-api-client";
 
@@ -81,7 +82,7 @@ const Services = () => {
           fees: s.fees.map((f) => ({
             description: f.type.charAt(0).toUpperCase() + f.type.slice(1), // "standard" → "Standard"
             amount: f.amount,
-            currency: "ZAR",
+            currency: " ",
           })),
           requiredDocuments: s.required_documents,
           eligibilityRequirements: s.eligibility_requirements,
@@ -295,8 +296,8 @@ const Services = () => {
                   </div>
 
                   <div className="flex items-center text-sm text-gray-500">
-                    <DollarSign className="h-4 w-4 mr-2" />
-                    <span>{formatFee(service.fees)}</span>
+                    <HandCoins className="h-4 w-4 mr-2" />
+                    <span>{formatFee(service.fees)} R</span>
                   </div>
 
                   <div className="flex items-center text-sm text-gray-500">

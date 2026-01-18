@@ -53,6 +53,8 @@ const AuthModal: React.FC<AuthModalProps> = ({
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
   const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [countryCode, setCountryCode] = useState<string>("+27"); // Default to South Africa
+  const [forgotPasswordMode, setForgotPasswordMode] = useState(false);
+  const [forgotPasswordStep, setForgotPasswordStep] = useState<"email" | "reset">("email");
 
   // Validation functions
   const validateFirstName = (name: string): string | null => {
@@ -439,6 +441,77 @@ const AuthModal: React.FC<AuthModalProps> = ({
     }
   };
 
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setIsLoading(true);
+
+    try {
+      if (forgotPasswordStep === "email") {
+        // Step 1: Send password reset OTP
+        const emailError = validateEmail(formData.email);
+        if (emailError) {
+          setError(emailError);
+          setIsLoading(false);
+          return;
+        }
+
+        const result = await phpAPI.forgotPassword(formData.email);
+        
+        if (result.success) {
+          setOtpExpiresAt(result.expiresAt || null);
+          setForgotPasswordStep("reset");
+          setError(null);
+        } else {
+          setError(result.error || "Failed to send password reset code. Please try again.");
+        }
+      } else if (forgotPasswordStep === "reset") {
+        // Step 2: Verify OTP and reset password
+        if (formData.otp.length !== 6) {
+          setError("Please enter a valid 6-digit OTP");
+          setIsLoading(false);
+          return;
+        }
+
+        if (!passwordValidation.isValid) {
+          setError("Password does not meet all requirements");
+          setIsLoading(false);
+          return;
+        }
+
+        if (formData.password !== formData.confirmPassword) {
+          setError("Passwords do not match");
+          setIsLoading(false);
+          return;
+        }
+
+        const result = await phpAPI.resetPassword(
+          formData.email,
+          formData.otp,
+          formData.password
+        );
+
+        if (result.success) {
+          setStep("success");
+          setTimeout(() => {
+            onClose();
+            resetForm();
+            setForgotPasswordMode(false);
+            setForgotPasswordStep("email");
+            // Don't redirect on password reset - user needs to login first
+          }, 3000); // Give user time to read the message
+        } else {
+          setError(result.error || "Failed to reset password. Please try again.");
+        }
+      }
+    } catch (err: any) {
+      console.error("Forgot password error:", err);
+      setError(err.message || "An unexpected error occurred. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const resetForm = () => {
     setFormData({
       first_name: "",
@@ -458,6 +531,8 @@ const AuthModal: React.FC<AuthModalProps> = ({
     setTouchedFields(new Set());
     setCountryCode("+27");
     setTimeRemaining(null);
+    setForgotPasswordMode(false);
+    setForgotPasswordStep("email");
   };
 
   const handleClose = () => {
@@ -477,10 +552,16 @@ const AuthModal: React.FC<AuthModalProps> = ({
               </div>
               <div>
                 <h2 className="text-xl font-bold">
-                  {type === "login" ? "Login" : "Create Account"}
+                  {forgotPasswordMode
+                    ? "Reset Password"
+                    : type === "login"
+                    ? "Login"
+                    : "Create Account"}
                 </h2>
                 <p className="text-blue-100 text-sm">
-                  Access your consular services
+                  {forgotPasswordMode
+                    ? "Recover your account"
+                    : "Access your consular services"}
                 </p>
               </div>
             </div>
@@ -505,7 +586,119 @@ const AuthModal: React.FC<AuthModalProps> = ({
             </div>
           )}
 
-          {step === "form" && (
+          {/* Forgot Password Form */}
+          {forgotPasswordMode && step === "form" && (
+            <form onSubmit={handleForgotPassword} className="space-y-4">
+              <div className="mb-4">
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  {forgotPasswordStep === "email" ? "Reset Password" : "Enter New Password"}
+                </h3>
+                <p className="text-sm text-gray-600">
+                  {forgotPasswordStep === "email"
+                    ? "Enter your email address and we'll send you a code to reset your password."
+                    : "Enter the code sent to your email and your new password."}
+                </p>
+              </div>
+
+              {forgotPasswordStep === "email" && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Email Address *
+                  </label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+                    <input
+                      type="email"
+                      required
+                      value={formData.email}
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="email@example.com"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {forgotPasswordStep === "reset" && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Verification Code *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      maxLength={6}
+                      value={formData.otp}
+                      onChange={(e) => setFormData({ ...formData, otp: e.target.value.replace(/\D/g, "").slice(0, 6) })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center text-2xl tracking-widest"
+                      placeholder="000000"
+                    />
+                    {timeRemaining !== null && timeRemaining > 0 && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Code expires in: {formatTimeRemaining(timeRemaining)}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      New Password *
+                    </label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        required
+                        value={formData.password}
+                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                        className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="Enter new password"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Confirm New Password *
+                    </label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        required
+                        value={formData.confirmPassword}
+                        onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                        className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="Confirm new password"
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
+
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isLoading
+                  ? "Processing..."
+                  : forgotPasswordStep === "email"
+                  ? "Send Reset Code"
+                  : "Reset Password"}
+              </button>
+            </form>
+          )}
+
+          {step === "form" && !forgotPasswordMode && (
             <form onSubmit={handleSubmit} className="space-y-4">
               {type === "register" && (
                 <div className="grid grid-cols-2 gap-4">
@@ -1120,10 +1313,16 @@ const AuthModal: React.FC<AuthModalProps> = ({
               </div>
               <div>
                 <h3 className="text-lg font-semibold text-gray-800">
-                  {type === "login" ? "Welcome Back!" : "Account Created!"}
+                  {forgotPasswordMode
+                    ? "Password Reset Successful!"
+                    : type === "login"
+                    ? "Welcome Back!"
+                    : "Account Created!"}
                 </h3>
                 <p className="text-gray-600 text-sm">
-                  {type === "login"
+                  {forgotPasswordMode
+                    ? "Your password has been reset successfully. Please login with your new password."
+                    : type === "login"
                     ? "You have been successfully logged in."
                     : "Your account has been created and verified successfully."}
                 </p>
@@ -1147,9 +1346,32 @@ const AuthModal: React.FC<AuthModalProps> = ({
                 </button>
               </p>
 
-              {type === "login" && (
-                <button className="text-blue-600 hover:text-blue-800 text-sm mt-2">
+              {type === "login" && !forgotPasswordMode && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setForgotPasswordMode(true);
+                    setForgotPasswordStep("email");
+                    setError(null);
+                    setFormData(prev => ({ ...prev, password: "", confirmPassword: "", otp: "" }));
+                  }}
+                  className="text-blue-600 hover:text-blue-800 text-sm mt-2"
+                >
                   Forgot your password?
+                </button>
+              )}
+              {type === "login" && forgotPasswordMode && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setForgotPasswordMode(false);
+                    setForgotPasswordStep("email");
+                    setError(null);
+                    resetForm();
+                  }}
+                  className="text-blue-600 hover:text-blue-800 text-sm mt-2"
+                >
+                  Back to login
                 </button>
               )}
             </div>

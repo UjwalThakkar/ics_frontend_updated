@@ -314,6 +314,34 @@ class PHPAPIClient {
     return data;
   }
 
+  /**
+   * Forgot password - send OTP to email
+   */
+  async forgotPassword(
+    email: string
+  ): Promise<{ success: boolean; message?: string; expiresAt?: string; error?: string }> {
+    const { data } = await this.request<any>("/auth/forgot-password", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    });
+    return data;
+  }
+
+  /**
+   * Reset password - verify OTP and set new password
+   */
+  async resetPassword(
+    email: string,
+    otp: string,
+    newPassword: string
+  ): Promise<{ success: boolean; message?: string; error?: string }> {
+    const { data } = await this.request<any>("/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify({ email, otp, newPassword }),
+    });
+    return data;
+  }
+
   /* --------------------------------------------------------------- */
   /* Services                                                        */
   /* --------------------------------------------------------------- */

@@ -144,6 +144,7 @@ export default function EditMiscellaneousApplicationModal({
 
     setSaving(true);
 
+    try {
       const payload: any = { ...formData };
       payload.is_registered_with_mission = formData.is_registered_with_mission ? 1 : 0;
 

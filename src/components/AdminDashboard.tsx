@@ -35,6 +35,7 @@ import ServiceDetailsTable from "./admin/service-details/ServiceDetailsTable";
 import MiscellaneousApplicationsManagement from "./admin/applications/miscellaneous/MiscellaneousApplicationsManagement";
 import VerificationCentersTable from "./admin/verification-centers/VerificationCentersTable";
 import CreateVerificationCenterModal from "./admin/verification-centers/CreateVerificationCenterModal";
+import EmailTemplatesManagement from "./admin/EmailTemplatesManagement";
 
 interface AdminDashboardProps {
   onLogout: () => void;
@@ -741,6 +742,8 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
             )}
           </>
         )}
+
+        {activeTab === "email-templates" && <EmailTemplatesManagement />}
 
         {["users", "settings"].includes(activeTab) && (
           <div>

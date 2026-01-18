@@ -12,6 +12,7 @@ import {
   MapPin,
   Globe,
   User as UserIcon,
+  AlertTriangle,
 } from "lucide-react";
 import IndianEmblem from "./IndianEmblem";
 import AuthModal from "./AuthModal";
@@ -105,7 +106,7 @@ const Header = () => {
 
         // Extract unique categories
         const categories = Array.from(
-          new Set(normalizedServices.map((s) => s.category))
+          new Set(normalizedServices.map((s) => s.category)),
         )
           .filter(Boolean)
           .sort();
@@ -131,7 +132,7 @@ const Header = () => {
 
   const handleServiceCategoryClick = (
     category: string,
-    e: React.MouseEvent
+    e: React.MouseEvent,
   ) => {
     e.preventDefault();
     // Update URL with category parameter
@@ -522,6 +523,20 @@ const Header = () => {
           </div>
         </div>
       )}
+      {/* Important Notices */}
+      <div className="bg-red-600 text-white py-4">
+        <div className="container mx-auto px-4">
+          <div className="flex items-center justify-center text-center">
+            <AlertTriangle className="h-5 w-5 mr-2 shrink-0" />
+            <p className="text-sm">
+              <strong>Important:</strong> Beware of fraudulent websites and
+              unauthorized agents. Always verify the authenticity of service
+              providers. This is the official website for Indian consular
+              services in Johannesburg.
+            </p>
+          </div>
+        </div>
+      </div>
 
       {/* Authentication Modal */}
       <AuthModal

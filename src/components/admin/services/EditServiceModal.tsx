@@ -9,6 +9,12 @@ interface FeeRow {
   amount: string;
 }
 
+interface DocumentRequirement {
+  name: string;
+  alternatives: string[];
+  note?: string; // Additional instructions/notes for the document
+}
+
 interface Props {
   serviceId: number;
   onClose: () => void;
@@ -43,6 +49,7 @@ export default function EditServiceModal({
   const [fees, setFees] = useState<FeeRow[]>([]);
   const [centers, setCenters] = useState<Center[]>([]);
   const [selectedCenterIds, setSelectedCenterIds] = useState<number[]>([]);
+  const [documentRequirements, setDocumentRequirements] = useState<DocumentRequirement[]>([]);
 
   // Toggle center selection
   const toggleCenter = (centerId: number) => {
@@ -62,6 +69,60 @@ export default function EditServiceModal({
     setFees((prev) =>
       prev.map((r, i) => (i === idx ? { ...r, [field]: value } : r))
     );
+
+  // Document requirements management
+  const addDocumentRequirement = () => {
+    setDocumentRequirements(prev => [...prev, { name: "", alternatives: [] }]);
+  };
+
+  const removeDocumentRequirement = (index: number) => {
+    setDocumentRequirements(prev => prev.filter((_, idx) => idx !== index));
+  };
+
+  const updateDocumentName = (index: number, name: string) => {
+    setDocumentRequirements(prev =>
+      prev.map((doc, idx) => (idx === index ? { ...doc, name } : doc))
+    );
+  };
+
+  const addAlternative = (docIndex: number) => {
+    setDocumentRequirements(prev =>
+      prev.map((doc, idx) =>
+        idx === docIndex ? { ...doc, alternatives: [...doc.alternatives, ""] } : doc
+      )
+    );
+  };
+
+  const removeAlternative = (docIndex: number, altIndex: number) => {
+    setDocumentRequirements(prev =>
+      prev.map((doc, idx) =>
+        idx === docIndex
+          ? { ...doc, alternatives: doc.alternatives.filter((_, aIdx) => aIdx !== altIndex) }
+          : doc
+      )
+    );
+  };
+
+  const updateAlternative = (docIndex: number, altIndex: number, value: string) => {
+    setDocumentRequirements(prev =>
+      prev.map((doc, idx) =>
+        idx === docIndex
+          ? {
+              ...doc,
+              alternatives: doc.alternatives.map((alt, aIdx) =>
+                aIdx === altIndex ? value : alt
+              ),
+            }
+          : doc
+      )
+    );
+  };
+
+  const updateDocumentNote = (docIndex: number, note: string) => {
+    setDocumentRequirements(prev =>
+      prev.map((doc, idx) => (idx === docIndex ? { ...doc, note } : doc))
+    );
+  };
 
   // Fetch categories
   useEffect(() => {
@@ -123,21 +184,42 @@ export default function EditServiceModal({
 
         const s = serviceRes.service;
 
+        // Handle required_documents - support both old format (array of strings) and new format (array of objects)
+        let docRequirements: DocumentRequirement[] = [];
+        if (Array.isArray(s.required_documents)) {
+          if (s.required_documents.length > 0) {
+            // Check if it's new format (objects with name and alternatives)
+            if (typeof s.required_documents[0] === 'object' && s.required_documents[0].name) {
+              docRequirements = s.required_documents.map((doc: any) => ({
+                name: doc.name || '',
+                alternatives: Array.isArray(doc.alternatives) ? doc.alternatives : [],
+                note: doc.note || undefined
+              }));
+            } else {
+              // Old format (array of strings) - convert to new format
+              docRequirements = s.required_documents.map((doc: string) => ({
+                name: doc,
+                alternatives: []
+              }));
+            }
+          }
+        }
+
         // Populate form
         setForm({
           category: s.category ?? "",
           title: s.title ?? "",
           description: s.description ?? "",
           processing_time: s.processing_time ?? "",
-          required_documents: Array.isArray(s.required_documents)
-            ? s.required_documents.join(", ")
-            : "",
+          required_documents: "", // Keep for backward compatibility but use documentRequirements state
           eligibility_requirements: Array.isArray(s.eligibility_requirements)
             ? s.eligibility_requirements.join(", ")
             : "",
           display_order: Number(s.display_order) ?? 99,
           is_active: s.is_active ? 1 : 0,
         });
+
+        setDocumentRequirements(docRequirements);
 
         // Populate fees
         const feeRows =
@@ -172,6 +254,30 @@ export default function EditServiceModal({
     }
 
     try {
+      // Prepare required_documents
+      let finalRequiredDocs: Array<{ name: string; alternatives: string[] }> = [];
+      
+      if (documentRequirements.length > 0) {
+        finalRequiredDocs = documentRequirements
+          .filter(doc => doc.name.trim())
+          .map(doc => ({
+            name: doc.name.trim(),
+            alternatives: doc.alternatives.filter(alt => alt.trim()).map(alt => alt.trim()),
+            note: doc.note?.trim() || undefined
+          }));
+      } else if (form.required_documents.trim()) {
+        // Fallback to old format if documentRequirements is empty but form field has data
+        finalRequiredDocs = form.required_documents
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean)
+          .map(name => ({ name, alternatives: [] }));
+      }
+      
+      // Log for debugging
+      console.log("Updating service with documentRequirements:", documentRequirements);
+      console.log("Final required_documents being sent:", finalRequiredDocs);
+
       const payload: any = {
         category: form.category.trim(),
         title: form.title.trim(),
@@ -180,10 +286,7 @@ export default function EditServiceModal({
         fees: fees
           .filter((r) => r.type.trim() && r.amount.trim())
           .map((r) => ({ type: r.type.trim(), amount: Number(r.amount) })),
-        required_documents: form.required_documents
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean),
+        required_documents: finalRequiredDocs,
         eligibility_requirements: form.eligibility_requirements
           .split(",")
           .map((s) => s.trim())
@@ -444,34 +547,140 @@ export default function EditServiceModal({
             </div>
           </div>
 
-          {/* Documents & Eligibility */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Required Documents (comma-separated)
+          {/* Document Requirements */}
+          <div>
+            <div className="flex justify-between items-center mb-2">
+              <label className="block text-sm font-medium text-gray-700">
+                Required Documents
               </label>
-              <input
-                value={form.required_documents}
-                onChange={(e) =>
-                  setForm({ ...form, required_documents: e.target.value })
-                }
-                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                placeholder="Old passport, Photos, Form"
-              />
+              <button
+                type="button"
+                onClick={addDocumentRequirement}
+                className="text-xs text-blue-600 hover:underline"
+              >
+                + Add Document Requirement
+              </button>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Eligibility Requirements (comma-separated)
-              </label>
-              <input
-                value={form.eligibility_requirements}
-                onChange={(e) =>
-                  setForm({ ...form, eligibility_requirements: e.target.value })
-                }
-                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                placeholder="Indian citizen, Age 18+"
-              />
-            </div>
+            {documentRequirements.length === 0 ? (
+              <div className="border border-gray-300 rounded-lg p-4 bg-gray-50">
+                <p className="text-sm text-gray-500 text-center">
+                  No document requirements added. Click "+ Add Document Requirement" to add one.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {documentRequirements.map((doc, docIndex) => (
+                  <div key={docIndex} className="border border-gray-300 rounded-lg p-4 bg-gray-50">
+                    <div className="flex items-start gap-3 mb-3">
+                      <div className="flex-1">
+                        <label className="block text-xs font-medium text-gray-600 mb-1">
+                          Document Name <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={doc.name}
+                          onChange={(e) => updateDocumentName(docIndex, e.target.value)}
+                          className="w-full px-3 py-2 border rounded-lg text-sm"
+                          placeholder="e.g. Residential Proof, Passport, Photo"
+                        />
+                      </div>
+                      {documentRequirements.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeDocumentRequirement(docIndex)}
+                          className="mt-6 text-red-600 hover:text-red-800"
+                          title="Remove document requirement"
+                        >
+                          <X className="h-5 w-5" />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Alternatives */}
+                    <div>
+                      <div className="flex justify-between items-center mb-2">
+                        <label className="block text-xs font-medium text-gray-600">
+                          Alternative Documents (Optional)
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => addAlternative(docIndex)}
+                          className="text-xs text-blue-600 hover:underline"
+                        >
+                          + Add Alternative
+                        </button>
+                      </div>
+                      {doc.alternatives.length === 0 ? (
+                        <p className="text-xs text-gray-500 italic">
+                          No alternatives. Users must provide "{doc.name || "this document"}".
+                        </p>
+                      ) : (
+                        <div className="space-y-2">
+                          {doc.alternatives.map((alt, altIndex) => (
+                            <div key={altIndex} className="flex items-center gap-2">
+                              <input
+                                type="text"
+                                value={alt}
+                                onChange={(e) =>
+                                  updateAlternative(docIndex, altIndex, e.target.value)
+                                }
+                                className="flex-1 px-3 py-1.5 border rounded-lg text-sm"
+                                placeholder="e.g. Aadhar Card, Light Bill, Bank Statement"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => removeAlternative(docIndex, altIndex)}
+                                className="text-red-600 hover:text-red-800"
+                                title="Remove alternative"
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {doc.alternatives.length > 0 && (
+                        <p className="text-xs text-gray-500 mt-2">
+                          Users can choose any one of these alternatives to satisfy "{doc.name || "this requirement"}".
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Document Note/Instructions */}
+                    <div className="mt-3">
+                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                        Additional Instructions/Notes (Optional)
+                      </label>
+                      <textarea
+                        value={doc.note || ""}
+                        onChange={(e) => updateDocumentNote(docIndex, e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="e.g. Document must be clear and readable, Maximum file size: 5MB, Must be in PDF or JPG format..."
+                        rows={2}
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        These instructions will be shown to users when uploading this document.
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Eligibility Requirements */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Eligibility Requirements (comma-separated)
+            </label>
+            <input
+              value={form.eligibility_requirements}
+              onChange={(e) =>
+                setForm({ ...form, eligibility_requirements: e.target.value })
+              }
+              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+              placeholder="Indian citizen, Age 18+"
+            />
           </div>
 
           {/* Display Order & Active */}

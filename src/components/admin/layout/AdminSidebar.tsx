@@ -8,6 +8,7 @@ import {
   Clock,
   Table,
   MapPin,
+  Mail,
 } from "lucide-react";
 
 const tabs = [
@@ -19,6 +20,7 @@ const tabs = [
   { id: "counters", label: "Counter Settings", icon: Table },
   { id: "verification-centers", label: "Verification Centers", icon: MapPin },
   { id: "service-details", label: "Service Details", icon: FileText },
+  { id: "email-templates", label: "Email Templates", icon: Mail },
   // { id: "users", label: "Users", icon: Users },
   // { id: "settings", label: "Settings", icon: Settings },
 ];

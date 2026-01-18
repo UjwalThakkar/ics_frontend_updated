@@ -211,18 +211,7 @@ const Footer = () => {
         </div>
       </div>
 
-      {/* Important Notices */}
-      <div className="bg-red-600 text-white py-4">
-        <div className="container mx-auto px-4">
-          <div className="flex items-center justify-center text-center">
-            <AlertTriangle className="h-5 w-5 mr-2 flex-shrink-0" />
-            <p className="text-sm">
-              <strong>Important:</strong> Beware of fraudulent websites and unauthorized agents.
-              Always verify the authenticity of service providers. This is the official website for Indian consular services in Johannesburg.
-            </p>
-          </div>
-        </div>
-      </div>
+
 
       {/* Bottom Bar */}
       <div className="bg-gray-900 text-white py-6">

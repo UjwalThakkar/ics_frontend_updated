@@ -18,11 +18,17 @@ import { phpAPI } from '@/lib/php-api-client'
 import { useAuth } from '@/contexts/AuthContext'
 import { toast } from 'sonner'
 
+interface DocumentRequirement {
+  name: string
+  alternatives: string[]
+  note?: string // Additional instructions/notes for the document
+}
+
 interface Service {
   service_id: number
   title: string
   description: string
-  required_documents: string[]
+  required_documents: string[] | DocumentRequirement[] // Support both old and new format
   category: string
 }
 
@@ -68,7 +74,8 @@ function MiscellaneousFormContent() {
   const [submitting, setSubmitting] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [uploadedFiles, setUploadedFiles] = useState<FileUpload[]>([])
-  const [requiredDocuments, setRequiredDocuments] = useState<string[]>([])
+  const [requiredDocuments, setRequiredDocuments] = useState<DocumentRequirement[]>([])
+  const [selectedAlternatives, setSelectedAlternatives] = useState<Record<number, string>>({})
 
   const [formData, setFormData] = useState<FormData>({
     full_name: '',
@@ -127,7 +134,30 @@ function MiscellaneousFormContent() {
         }
 
         setService(foundService)
-        setRequiredDocuments(foundService.required_documents || [])
+        
+        // Normalize required_documents - handle both old format (string[]) and new format (DocumentRequirement[])
+        const docs = foundService.required_documents || []
+        let normalizedDocs: DocumentRequirement[] = []
+        
+        if (docs.length > 0) {
+            // Check if it's new format (objects with name and alternatives)
+            if (typeof docs[0] === 'object' && docs[0].name) {
+              normalizedDocs = docs.map((doc: any) => ({
+                name: doc.name || '',
+                alternatives: Array.isArray(doc.alternatives) ? doc.alternatives : [],
+                note: doc.note || undefined
+              }))
+            } else {
+              // Old format (array of strings) - convert to new format
+              normalizedDocs = (docs as string[]).map((doc: string) => ({
+                name: doc,
+                alternatives: [],
+                note: undefined
+              }))
+            }
+        }
+        
+        setRequiredDocuments(normalizedDocs)
         
         // Pre-fill email if user is logged in
         if (user?.email) {
@@ -448,7 +478,12 @@ function MiscellaneousFormContent() {
             </h3>
             <ul className="list-disc list-inside text-sm text-blue-800 space-y-1">
               {requiredDocuments.map((doc, index) => (
-                <li key={index}>{doc}</li>
+                <li key={index}>
+                  {typeof doc === 'string' ? doc : doc.name}
+                  {typeof doc === 'object' && doc.alternatives && doc.alternatives.length > 0 && (
+                    <span className="text-gray-600"> (or: {doc.alternatives.join(', ')})</span>
+                  )}
+                </li>
               ))}
             </ul>
           </div>
@@ -973,21 +1008,78 @@ function MiscellaneousFormContent() {
 
             {requiredDocuments.length > 0 && (
               <div className="space-y-4">
-                {requiredDocuments.map((doc, index) => {
+                {requiredDocuments.map((docReq, index) => {
+                  const hasAlternatives = docReq.alternatives && docReq.alternatives.length > 0
+                  const selectedAlternative = selectedAlternatives[index] || ''
+                  const documentName = hasAlternatives && selectedAlternative 
+                    ? selectedAlternative 
+                    : docReq.name
+                  
                   // Create a sanitized field name for the document
-                  const fieldName = `document_${index + 1}_${doc.toLowerCase().replace(/[^a-z0-9]/g, '_').substring(0, 30)}`
+                  const fieldName = `document_${index + 1}_${documentName.toLowerCase().replace(/[^a-z0-9]/g, '_').substring(0, 30)}`
+                  
                   return (
-                    <div key={index} className="border border-gray-300 rounded-lg p-4">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        {doc}
-                      </label>
-                      <input
-                        type="file"
-                        accept=".pdf,.jpg,.jpeg,.png"
-                        onChange={(e) => handleFileUpload(e, fieldName)}
-                        className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                        multiple
-                      />
+                    <div key={index} className="border border-gray-300 rounded-lg p-4 bg-gray-50">
+                      <div className="mb-3">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          {docReq.name} {hasAlternatives && <span className="text-gray-500 font-normal">(Choose one alternative)</span>}
+                        </label>
+                        
+                        {hasAlternatives ? (
+                          <div className="space-y-2">
+                            <select
+                              value={selectedAlternative}
+                              onChange={(e) => {
+                                setSelectedAlternatives(prev => ({
+                                  ...prev,
+                                  [index]: e.target.value
+                                }))
+                              }}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            >
+                              <option value="">-- Select document type --</option>
+                              {docReq.alternatives.map((alt, altIndex) => (
+                                <option key={altIndex} value={alt}>
+                                  {alt}
+                                </option>
+                              ))}
+                            </select>
+                            {selectedAlternative && (
+                              <p className="text-xs text-gray-600">
+                                You selected: <span className="font-medium">{selectedAlternative}</span>
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-gray-600">
+                            Required document: <span className="font-medium">{docReq.name}</span>
+                          </p>
+                        )}
+                      </div>
+                      
+                      {(!hasAlternatives || selectedAlternative) && (
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">
+                            Upload {selectedAlternative || docReq.name}
+                          </label>
+                          
+                          {/* Display note/instructions if available */}
+                          {docReq.note && (
+                            <div className="mb-2 p-2 bg-blue-50 border border-blue-200 rounded-lg">
+                              <p className="text-xs font-medium text-blue-900 mb-1">📋 Instructions:</p>
+                              <p className="text-xs text-blue-800 whitespace-pre-line">{docReq.note}</p>
+                            </div>
+                          )}
+                          
+                          <input
+                            type="file"
+                            accept=".pdf,.jpg,.jpeg,.png"
+                            onChange={(e) => handleFileUpload(e, fieldName)}
+                            className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                            multiple
+                          />
+                        </div>
+                      )}
                     </div>
                   )
                 })}

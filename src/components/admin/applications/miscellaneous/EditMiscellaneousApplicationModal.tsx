@@ -1,8 +1,8 @@
 // src/components/admin/applications/miscellaneous/EditMiscellaneousApplicationModal.tsx
 "use client";
 
-import { X, Save } from "lucide-react";
-import { MiscellaneousApplication } from "@/types/admin";
+import { X, Save, Upload, FileText, Trash2 } from "lucide-react";
+import { MiscellaneousApplication, ApplicationFile } from "@/types/admin";
 import { phpAPI } from "@/lib/php-api-client";
 import { useState, useEffect } from "react";
 
@@ -50,6 +50,32 @@ export default function EditMiscellaneousApplicationModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  
+  // File upload state
+  const [files, setFiles] = useState<ApplicationFile[]>([]);
+  const [loadingFiles, setLoadingFiles] = useState(false);
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [newFile, setNewFile] = useState<File | null>(null);
+  const [newFileDocumentType, setNewFileDocumentType] = useState("admin_upload");
+  const [newFileDescription, setNewFileDescription] = useState("");
+
+  // Fetch files when modal opens
+  useEffect(() => {
+    const fetchFiles = async () => {
+      setLoadingFiles(true);
+      try {
+        const res = await phpAPI.admin.getMiscellaneousApplicationDetails(
+          application.application_id
+        );
+        setFiles(res.files || []);
+      } catch (err) {
+        console.error("Failed to load files:", err);
+      } finally {
+        setLoadingFiles(false);
+      }
+    };
+    fetchFiles();
+  }, [application.application_id]);
 
   // Update formData when application prop changes (e.g., after refresh)
   useEffect(() => {
@@ -101,16 +127,29 @@ export default function EditMiscellaneousApplicationModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSaving(true);
     setError(null);
 
-    try {
+    // Validate: Admin notes are required when status is 'rejected'
+    if (formData.status === 'rejected' && !formData.admin_notes?.trim()) {
+      setError('Admin notes are required when rejecting an application. Please provide a reason for rejection.');
+      // Scroll to error message
+      setTimeout(() => {
+        const errorElement = document.querySelector('.bg-red-50');
+        if (errorElement) {
+          errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 100);
+      return;
+    }
+
+    setSaving(true);
+
       const payload: any = { ...formData };
       payload.is_registered_with_mission = formData.is_registered_with_mission ? 1 : 0;
 
-      // Remove empty strings and convert to null (but keep status even if empty)
+      // Remove empty strings and convert to null (but keep status and admin_notes even if empty)
       Object.keys(payload).forEach((key) => {
-        if (payload[key] === "" && key !== "status") {
+        if (payload[key] === "" && key !== "status" && key !== "admin_notes") {
           payload[key] = null;
         }
       });
@@ -136,6 +175,60 @@ export default function EditMiscellaneousApplicationModal({
       setError(err.message || "Failed to update application");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleFileUpload = async () => {
+    if (!newFile) {
+      setError("Please select a file to upload");
+      return;
+    }
+
+    setUploadingFile(true);
+    setError(null);
+
+    try {
+      const result = await phpAPI.admin.uploadMiscellaneousApplicationFile(
+        application.application_id,
+        newFile,
+        newFileDocumentType,
+        newFileDescription || undefined
+      );
+
+      // Refresh files list
+      const res = await phpAPI.admin.getMiscellaneousApplicationDetails(
+        application.application_id
+      );
+      setFiles(res.files || []);
+
+      // Reset form
+      setNewFile(null);
+      setNewFileDocumentType("admin_upload");
+      setNewFileDescription("");
+      
+      // Clear file input
+      const fileInput = document.getElementById('admin-file-upload') as HTMLInputElement;
+      if (fileInput) {
+        fileInput.value = '';
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to upload file");
+    } finally {
+      setUploadingFile(false);
+    }
+  };
+
+  const handleDeleteFile = async (fileId: string) => {
+    if (!confirm("Are you sure you want to delete this file? This action cannot be undone.")) {
+      return;
+    }
+
+    try {
+      // Note: You may need to add a delete endpoint in the backend
+      // For now, we'll just show an error
+      setError("File deletion not yet implemented. Please contact the developer.");
+    } catch (err: any) {
+      setError(err.message || "Failed to delete file");
     }
   };
 
@@ -537,15 +630,148 @@ export default function EditMiscellaneousApplicationModal({
           <div className="border-t pt-4">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">
               Admin Notes
+              {formData.status === 'rejected' && (
+                <span className="text-red-600 ml-1">*</span>
+              )}
             </h3>
+            {formData.status === 'rejected' && (
+              <p className="text-sm text-red-600 mb-2">
+                Admin notes are required when rejecting an application. Please provide a reason for rejection.
+              </p>
+            )}
             <textarea
               name="admin_notes"
               value={formData.admin_notes}
               onChange={handleChange}
               rows={4}
-              placeholder="Add any admin notes or comments here..."
-              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required={formData.status === 'rejected'}
+              placeholder={
+                formData.status === 'rejected' 
+                  ? "Please provide a reason for rejection (required)..." 
+                  : "Add any admin notes or comments here..."
+              }
+              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                formData.status === 'rejected' && !formData.admin_notes?.trim()
+                  ? 'border-red-500'
+                  : ''
+              }`}
             />
+          </div>
+
+          {/* Admin File Upload Section */}
+          <div className="border-t pt-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+              <Upload className="h-5 w-5 mr-2" />
+              Upload Additional Documents
+            </h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Upload additional supporting documents that may be required for this application.
+            </p>
+
+            {/* Upload Form */}
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-4 mb-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Select File <span className="text-red-500">*</span>
+                </label>
+                <input
+                  id="admin-file-upload"
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  onChange={(e) => setNewFile(e.target.files?.[0] || null)}
+                  className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Maximum file size: 10MB. Allowed formats: PDF, JPG, PNG
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Document Type
+                </label>
+                <select
+                  value={newFileDocumentType}
+                  onChange={(e) => setNewFileDocumentType(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="admin_upload">Additional Supporting Document</option>
+                  <option value="verification">Verification Document</option>
+                  <option value="correction">Correction Document</option>
+                  <option value="supplement">Supplemental Document</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Description (Optional)
+                </label>
+                <textarea
+                  value={newFileDescription}
+                  onChange={(e) => setNewFileDescription(e.target.value)}
+                  rows={2}
+                  placeholder="Brief description of the document..."
+                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={handleFileUpload}
+                disabled={!newFile || uploadingFile}
+                className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+              >
+                <Upload className="h-4 w-4" />
+                <span>{uploadingFile ? "Uploading..." : "Upload File"}</span>
+              </button>
+            </div>
+
+            {/* Uploaded Files List */}
+            <div>
+              <h4 className="text-sm font-medium text-gray-700 mb-2">
+                Uploaded Files ({files.length})
+              </h4>
+              {loadingFiles ? (
+                <div className="text-center py-4 text-gray-500 text-sm">Loading files...</div>
+              ) : files.length === 0 ? (
+                <div className="text-center py-4 text-gray-500 text-sm">No files uploaded</div>
+              ) : (
+                <div className="space-y-2">
+                  {files.map((file) => (
+                    <div
+                      key={file.id}
+                      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200"
+                    >
+                      <div className="flex items-center space-x-3 flex-1">
+                        <FileText className="h-5 w-5 text-gray-400" />
+                        <div className="flex-1">
+                          <div className="text-sm font-medium text-gray-900">
+                            {file.original_name}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {file.document_type} • {(file.file_size / 1024).toFixed(2)} KB
+                            {file.uploaded_by === null && (
+                              <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-xs">
+                                Admin Upload
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteFile(file.file_id)}
+                        className="ml-2 p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded"
+                        title="Delete file"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Actions */}
@@ -559,8 +785,9 @@ export default function EditMiscellaneousApplicationModal({
             </button>
             <button
               type="submit"
-              disabled={saving}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center space-x-2"
+              disabled={saving || (formData.status === 'rejected' && !formData.admin_notes?.trim())}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+              title={formData.status === 'rejected' && !formData.admin_notes?.trim() ? 'Please provide admin notes before saving' : ''}
             >
               <Save className="h-4 w-4" />
               <span>{saving ? "Saving..." : "Save Changes"}</span>

@@ -191,11 +191,11 @@ export default function AppointmentPage() {
           firstName: u.firstName ?? "",
           lastName: u.lastName ?? "",
           gender: u.gender ?? "",
-          dateOfBirth: u.date_of_birth ?? "",
-          currentNationality: u.nationality ?? "Indian",
-          passportNumber: u.passport_no ?? "",
-          passportExpiry: u.passport_expiry ?? "",
-          contactNumber: u.phone_no ?? "",
+          dateOfBirth: u.dateOfBirth ?? "",
+          currentNationality: u.nationality ?? "",
+          passportNumber: u.passportNo ?? "",
+          passportExpiry: u.passportExpiry ?? "",
+          contactNumber: u.phoneNo ?? "",
           email: u.email ?? "",
         });
       }
@@ -324,19 +324,22 @@ export default function AppointmentPage() {
             appointment.service_title
           }</div></div>
           <div class="row"><div class="label">Counter:</div><div class="value">${
-            appointment.counter_number
-          } - ${appointment.counter_name}</div></div>
+            appointment.counter_number || appointment.counter_id || 'N/A'
+          } - ${appointment.counter_name || 'N/A'}</div></div>
         </div>
 
         <div class="section"><h3>Applicant</h3>
           <div class="row"><div class="label">Name:</div><div class="value">${
-            appointment.client_name
+            appointment.client_name || 
+            (appointment.first_name && appointment.last_name 
+              ? `${appointment.first_name} ${appointment.last_name}` 
+              : appointment.first_name || appointment.last_name || 'N/A')
           }</div></div>
           <div class="row"><div class="label">Email:</div><div class="value">${
-            appointment.user_email
+            appointment.user_email || appointment.email || 'N/A'
           }</div></div>
           <div class="row"><div class="label">Phone:</div><div class="value">${
-            appointment.client_phone
+            appointment.client_phone || appointment.phone_no || 'N/A'
           }</div></div>
         </div>
 

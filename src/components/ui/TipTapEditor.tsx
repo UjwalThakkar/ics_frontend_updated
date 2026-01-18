@@ -155,6 +155,7 @@
 // src/components/ui/TipTapEditor.tsx
 "use client";
 
+import React from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import LinkExtension from "@tiptap/extension-link";
@@ -190,6 +191,7 @@ interface Props {
   onChange: (value: string) => void;
   placeholder?: string;
   minHeight?: string;
+  onEditorReady?: (editor: any) => void;
 }
 
 export default function TipTapEditor({
@@ -197,6 +199,7 @@ export default function TipTapEditor({
   onChange,
   placeholder = "Start writing...",
   minHeight = "300px",
+  onEditorReady,
 }: Props) {
   const editor = useEditor({
     extensions: [
@@ -221,6 +224,13 @@ export default function TipTapEditor({
       },
     },
   });
+
+  // Expose editor instance to parent via callback
+  React.useEffect(() => {
+    if (editor && onEditorReady) {
+      onEditorReady(editor);
+    }
+  }, [editor, onEditorReady]);
 
   if (!editor) return null;
 

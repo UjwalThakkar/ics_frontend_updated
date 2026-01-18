@@ -416,6 +416,11 @@ export default function MiscellaneousApplicationDetailsModal({
                         <div className="text-xs text-gray-500">
                           {file.document_type} •{" "}
                           {(file.file_size / 1024).toFixed(2)} KB
+                          {file.uploaded_by === null && (
+                            <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-xs">
+                              Admin Upload
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>

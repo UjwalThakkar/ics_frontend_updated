@@ -71,6 +71,20 @@ import {
   AdminMiscellaneousApplicationStats,
 } from "@/types/admin";
 
+export interface NotificationTemplate {
+  id: number;
+  template_id: string;
+  name: string;
+  type: 'email' | 'sms' | 'push';
+  category: string | null;
+  subject: string | null;
+  content: string;
+  variables: Record<string, any> | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 /* -------------------------- OCR TYPES --------------------------- */
 export interface ExtractedData {
   firstName?: string;
@@ -1001,11 +1015,111 @@ class PHPAPIClient {
       return res.blob();
     },
 
+    uploadMiscellaneousApplicationFile: async (
+      applicationId: string,
+      file: File,
+      documentType?: string,
+      description?: string
+    ): Promise<{ file_id: string; file_name: string; message: string }> => {
+      const formData = new FormData();
+      formData.append('file', file);
+      if (documentType) {
+        formData.append('document_type', documentType);
+      }
+      if (description) {
+        formData.append('description', description);
+      }
+
+      const url = `${API_BASE_URL}/admin/applications/miscellaneous/${applicationId}/files`;
+      const headers: Record<string, string> = {};
+
+      const csrf = this.getCsrfToken();
+      if (csrf) {
+        headers['X-CSRF-Token'] = csrf;
+      }
+
+      const res = await fetch(url, {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+        headers,
+      });
+
+      const response = await res.json();
+
+      if (!res.ok || !response.success) {
+        const errMsg = response.error || response.message || 'Failed to upload file';
+        throw new Error(errMsg);
+      }
+
+      return response.data || response;
+    },
+
     getMiscellaneousApplicationStats: async (): Promise<{
       stats: AdminMiscellaneousApplicationStats;
     }> => {
       const { data } = await this.request<{ stats: AdminMiscellaneousApplicationStats }>(
         `/admin/applications/miscellaneous/stats`
+      );
+      return data;
+    },
+
+    // Notification Templates
+    getNotificationTemplates: async (params?: {
+      type?: string;
+      category?: string;
+    }): Promise<{ templates: NotificationTemplate[] }> => {
+      const query = new URLSearchParams(
+        Object.entries(params || {})
+          .filter(([, v]) => v != null && v !== "")
+          .map(([k, v]) => [k, String(v)])
+      ).toString();
+      
+      const { data } = await this.request<{ templates: NotificationTemplate[] }>(
+        `/admin/notification-templates${query ? `?${query}` : ""}`
+      );
+      return data;
+    },
+
+    getNotificationTemplate: async (id: number): Promise<{ template: NotificationTemplate }> => {
+      const { data } = await this.request<{ template: NotificationTemplate }>(
+        `/admin/notification-templates/${id}`
+      );
+      return data;
+    },
+
+    updateNotificationTemplate: async (
+      id: number,
+      payload: Partial<NotificationTemplate>
+    ): Promise<{ message: string; template: NotificationTemplate }> => {
+      const { data } = await this.request<{ message: string; template: NotificationTemplate }>(
+        `/admin/notification-templates/${id}`,
+        {
+          method: "PUT",
+          body: JSON.stringify(payload),
+        }
+      );
+      return data;
+    },
+
+    createNotificationTemplate: async (
+      payload: {
+        template_id: string;
+        name: string;
+        type: 'email' | 'sms' | 'push';
+        category?: string;
+        subject?: string;
+        content: string;
+        variables?: Record<string, any>;
+        is_active?: boolean;
+      }
+    ): Promise<{ message: string; template: NotificationTemplate }> => {
+      const { data } = await this.request<{ message: string; template: NotificationTemplate }>(
+        `/admin/notification-templates`,
+        {
+          method: "POST",
+          body: JSON.stringify(payload),
+        }
       );
       return data;
     },

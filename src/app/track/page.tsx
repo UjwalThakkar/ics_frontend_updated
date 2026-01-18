@@ -13,14 +13,7 @@ export default function TrackPage() {
 
       <div className="container mx-auto px-4 py-8">
         {/* Page Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-navy mb-4">
-            Track Your <span className="text-saffron">Application</span>
-          </h1>
-          <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            Enter your application reference number to check the current status and track progress in real-time.
-          </p>
-        </div>
+
 
         <TrackingSection />
 

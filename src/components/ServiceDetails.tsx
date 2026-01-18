@@ -275,20 +275,36 @@ const ServiceDetails: React.FC<ServiceDetailsProps> = ({ service }) => {
               </h3>
 
               <div className="space-y-3">
-                <Link
-                  href={
-                    service.category === "Visa"
-                      ? `/apply/VisaForm?service=${service.id}`
-                      : service.category === "Passport"
-                        ? `/apply/PassportForm?service=${service.id}`
-                        : service.category === "Miscellaneous"
-                          ? `/apply/MiscellaneousForm?service=${service.service_id}`
-                          : `/`
-                  }
-                  className="w-full bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center font-medium"
-                >
-                  Apply Now
-                </Link>
+                {service.category === "Passport" ? (
+                  <a
+                    href="https://embassy.passportindia.gov.in"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center font-medium"
+                  >
+                    Apply Now
+                  </a>
+                ) : service.category === "Visa" ? (
+                  <a
+                    href="https://indianvisaonline.gov.in/visa/index.html"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center font-medium"
+                  >
+                    Apply Now
+                  </a>
+                ) : (
+                  <Link
+                    href={
+                      service.category === "Miscellaneous"
+                        ? `/apply/MiscellaneousForm?service=${service.service_id}`
+                        : `/`
+                    }
+                    className="w-full bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center font-medium"
+                  >
+                    Apply Now
+                  </Link>
+                )}
 
                 <Link
                   href="/appointment"

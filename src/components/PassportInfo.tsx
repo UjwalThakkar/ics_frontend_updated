@@ -144,6 +144,37 @@ const PassportInfo = () => {
             </nav>
           </div>
 
+          {/* Passport Seva Website Notice - Unique to Passport Services */}
+          <div className="mb-6 p-4 bg-blue-50 border-l-4 border-blue-500 rounded-r-lg">
+            <div className="flex items-start space-x-3">
+              <div className="flex-shrink-0">
+                <svg className="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold text-blue-900 mb-2">
+                  Important: Online Application Required
+                </h3>
+                <p className="text-blue-800 mb-2">
+                  Once you are ready to apply, visit the{" "}
+                  <a
+                    href="https://embassy.passportindia.gov.in"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:text-blue-800 underline font-medium"
+                  >
+                    Passport Seva website
+                  </a>{" "}
+                  operated by the Ministry of External Affairs, Government of India, complete and print the form and bring it with you to the Application Centre.
+                </p>
+                <p className="text-blue-800 font-medium">
+                  Note: Filling or submitting the online form on the Government website does not complete the process - you are required to submit the physical application form and supporting documents to the Application Centre by booking an appointment.
+                </p>
+              </div>
+            </div>
+          </div>
+
           {loadingDetails ? (
             <div className="flex justify-center py-8">
               <Loader2 className="h-8 w-8 animate-spin text-gray-800" />

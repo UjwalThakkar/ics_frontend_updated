@@ -42,9 +42,18 @@ const TrackingSection = () => {
     return statusMap[status.toLowerCase()] || status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, ' ').replace(/-/g, ' ')
   }
 
-  const handleTrack = async () => {
+  const handleTrack = async (e?: React.FormEvent) => {
+    e?.preventDefault()
+    
     if (!trackingNumber.trim()) {
       toast.error('Please enter an application ID')
+      return
+    }
+
+    // Validate application ID format (should start with MISC and be at least 12 characters)
+    const trimmedId = trackingNumber.trim()
+    if (!trimmedId.startsWith('MISC') || trimmedId.length < 12) {
+      toast.error('Invalid application ID format. Application IDs should start with "MISC" followed by the date and reference number.')
       return
     }
 
@@ -52,7 +61,7 @@ const TrackingSection = () => {
     setTrackingResult(null)
 
     try {
-      const data = await phpAPI.trackMiscellaneousApplication(trackingNumber.trim())
+      const data = await phpAPI.trackMiscellaneousApplication(trimmedId)
       
       setTrackingResult({
         applicationNumber: data.application_id,
@@ -63,12 +72,43 @@ const TrackingSection = () => {
         stages: data.timeline,
         adminNotes: data.admin_notes || null
       })
+      
+      // Show success message
+      toast.success('Application found successfully!')
     } catch (error: any) {
       console.error('Tracking error:', error)
-      toast.error(error.message || 'Failed to track application. Please check your application ID.')
+      
+      // Provide specific error messages based on the error
+      let errorMessage = 'Failed to track application. Please check your application ID.'
+      
+      // Handle different error formats
+      const errorText = error?.message || error?.error || String(error || '')
+      const errorMsg = errorText.toLowerCase()
+      
+      if (errorMsg.includes('not found') || errorMsg.includes('application not found')) {
+        errorMessage = `Application ID "${trimmedId}" not found. Please verify the ID and try again.`
+      } else if (errorMsg.includes('required') || errorMsg.includes('empty')) {
+        errorMessage = 'Please enter a valid application ID.'
+      } else if (errorMsg.includes('failed to track') || errorMsg.includes('server error') || errorMsg.includes('temporarily unavailable')) {
+        errorMessage = 'Service temporarily unavailable. Please try again later or contact support.'
+      } else if (errorText && errorText !== 'Unknown API error') {
+        // Use the specific error message from the backend
+        errorMessage = errorText
+      }
+      
+      // Ensure toast is shown
+      toast.error(errorMessage, {
+        duration: 5000,
+      })
       setTrackingResult(null)
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && !isLoading) {
+      handleTrack()
     }
   }
 
@@ -88,7 +128,7 @@ const TrackingSection = () => {
         {/* Tracking Input */}
         <div className="max-w-2xl mx-auto mb-12">
           <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-8 border border-blue-200">
-            <div className="flex flex-col md:flex-row gap-4">
+            <form onSubmit={handleTrack} className="flex flex-col md:flex-row gap-4">
               <div className="flex-1">
                 <label htmlFor="tracking" className="block text-sm font-medium text-gray-700 mb-2">
                   Application Number
@@ -98,15 +138,16 @@ const TrackingSection = () => {
                   type="text"
                   value={trackingNumber}
                   onChange={(e) => setTrackingNumber(e.target.value)}
-                  placeholder="Enter your application number (e.g., ICS2025001234)"
+                  onKeyPress={handleKeyPress}
+                  placeholder="Enter your application number (e.g., MISC20260118A1B2C3D4)"
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
               <div className="flex items-end">
                 <button
-                  onClick={handleTrack}
-                  disabled={isLoading || !trackingNumber.trim()}
-                  className="px-8 py-3 bg-saffron hover:bg-orange-600 disabled:bg-gray-300 text-white font-semibold rounded-lg transition-colors flex items-center"
+                  type="submit"
+                  disabled={isLoading}
+                  className="px-8 py-3 bg-saffron hover:bg-orange-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors flex items-center"
                 >
                   {isLoading ? (
                     <>
@@ -121,7 +162,7 @@ const TrackingSection = () => {
                   )}
                 </button>
               </div>
-            </div>
+            </form>
           </div>
         </div>
 

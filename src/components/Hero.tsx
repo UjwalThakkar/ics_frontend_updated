@@ -75,7 +75,7 @@ const Hero = () => {
         }}
       >
         {/* Gradient Overlay */}
-        <div className="absolute inset-0 bg-gradient-to-br from-navy/80 via-blue-800/70 to-indigo-900/80"></div>
+        <div className="absolute inset-0 bg-linear-to-br from-navy/80 via-blue-800/70 to-indigo-900/80"></div>
       </div>
 
       {/* Background Pattern Overlay */}

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import {
   X,
   Eye,
@@ -10,6 +10,8 @@ import {
   User,
   Lock,
   AlertCircle,
+  Check,
+  XCircle,
 } from "lucide-react";
 import { phpAPI } from "@/lib/php-api-client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -29,7 +31,7 @@ const AuthModal: React.FC<AuthModalProps> = ({
   onSwitchType,
   onSuccessRedirect,
 }) => {
-  const { login, register } = useAuth();
+  const { login, register, sendRegistrationOtp, regenerateRegistrationOtp } = useAuth();
   const [formData, setFormData] = useState({
     first_name: "",
     last_name: "",
@@ -44,6 +46,259 @@ const AuthModal: React.FC<AuthModalProps> = ({
   const [step, setStep] = useState<"form" | "otp" | "success">("form");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [otpExpiresAt, setOtpExpiresAt] = useState<string | null>(null);
+  const [isRegeneratingOtp, setIsRegeneratingOtp] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [touchedFields, setTouchedFields] = useState<Set<string>>(new Set());
+  const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
+  const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [countryCode, setCountryCode] = useState<string>("+27"); // Default to South Africa
+
+  // Validation functions
+  const validateFirstName = (name: string): string | null => {
+    if (!name.trim()) {
+      return "First name is required";
+    }
+    if (name.trim().length < 2) {
+      return "First name must be at least 2 characters";
+    }
+    if (!/^[a-zA-Z\s'-]+$/.test(name.trim())) {
+      return "First name can only contain letters, spaces, hyphens, and apostrophes";
+    }
+    return null;
+  };
+
+  const validateLastName = (name: string): string | null => {
+    if (!name.trim()) {
+      return "Last name is required";
+    }
+    if (name.trim().length < 2) {
+      return "Last name must be at least 2 characters";
+    }
+    if (!/^[a-zA-Z\s'-]+$/.test(name.trim())) {
+      return "Last name can only contain letters, spaces, hyphens, and apostrophes";
+    }
+    return null;
+  };
+
+  const validateEmail = (email: string): string | null => {
+    if (!email.trim()) {
+      return "Email is required";
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      return "Please enter a valid email address";
+    }
+    return null;
+  };
+
+  // Common country codes with their validation rules
+  const countryPhoneRules: Record<string, { minLength: number; maxLength: number; pattern?: RegExp }> = {
+    "+27": { minLength: 9, maxLength: 9, pattern: /^[0-9]{9}$/ }, // South Africa
+    "+1": { minLength: 10, maxLength: 10, pattern: /^[0-9]{10}$/ }, // USA/Canada
+    "+91": { minLength: 10, maxLength: 10, pattern: /^[0-9]{10}$/ }, // India
+    "+44": { minLength: 10, maxLength: 10, pattern: /^[0-9]{10}$/ }, // UK
+    "+61": { minLength: 9, maxLength: 9, pattern: /^[0-9]{9}$/ }, // Australia
+    "+86": { minLength: 11, maxLength: 11, pattern: /^[0-9]{11}$/ }, // China
+    "+81": { minLength: 10, maxLength: 10, pattern: /^[0-9]{10}$/ }, // Japan
+    "+49": { minLength: 10, maxLength: 11, pattern: /^[0-9]{10,11}$/ }, // Germany
+    "+33": { minLength: 9, maxLength: 9, pattern: /^[0-9]{9}$/ }, // France
+    "+39": { minLength: 9, maxLength: 10, pattern: /^[0-9]{9,10}$/ }, // Italy
+  };
+
+  const validatePhone = (phone: string, countryCode: string): string | null => {
+    if (!phone.trim()) {
+      return "Phone number is required";
+    }
+    
+    // Get validation rules for the country code
+    const rules = countryPhoneRules[countryCode];
+    const digitsOnly = phone.trim().replace(/\D/g, "");
+    
+    if (rules) {
+      // Use specific validation for known country codes
+      if (digitsOnly.length < rules.minLength || digitsOnly.length > rules.maxLength) {
+        return `Phone number must be ${rules.minLength}-${rules.maxLength} digits`;
+      }
+      if (rules.pattern && !rules.pattern.test(digitsOnly)) {
+        return "Please enter a valid phone number";
+      }
+    } else {
+      // Generic validation for unknown country codes
+      if (digitsOnly.length < 7) {
+        return "Phone number must be at least 7 digits";
+      }
+      if (digitsOnly.length > 15) {
+        return "Phone number cannot exceed 15 digits";
+      }
+    }
+    
+    return null;
+  };
+
+  const validatePassword = (password: string): {
+    isValid: boolean;
+    checks: {
+      minLength: boolean;
+      hasUpperCase: boolean;
+      hasLowerCase: boolean;
+      hasNumber: boolean;
+      hasSpecialChar: boolean;
+    };
+  } => {
+    const checks = {
+      minLength: password.length >= 8,
+      hasUpperCase: /[A-Z]/.test(password),
+      hasLowerCase: /[a-z]/.test(password),
+      hasNumber: /[0-9]/.test(password),
+      hasSpecialChar: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password),
+    };
+
+    return {
+      isValid: Object.values(checks).every((check) => check === true),
+      checks,
+    };
+  };
+
+  // Password validation checks (memoized)
+  const passwordValidation = useMemo(
+    () => validatePassword(formData.password),
+    [formData.password]
+  );
+
+  // OTP Countdown Timer Effect
+  useEffect(() => {
+    if (step === "otp" && otpExpiresAt) {
+      const updateCountdown = () => {
+        const now = new Date().getTime();
+        // Parse the UTC datetime string properly
+        // Backend sends UTC time in format: "2026-01-18 10:27:16"
+        // We need to parse it as UTC explicitly
+        let expiresAtTime: number;
+        try {
+          if (otpExpiresAt.includes('T') || otpExpiresAt.includes('Z') || otpExpiresAt.includes('+')) {
+            // Already has timezone info
+            expiresAtTime = new Date(otpExpiresAt).getTime();
+          } else {
+            // Assume UTC if no timezone info (backend sends UTC)
+            // Format: "2026-01-18 10:27:16" -> "2026-01-18T10:27:16Z"
+            const utcString = otpExpiresAt.replace(' ', 'T') + 'Z';
+            expiresAtTime = new Date(utcString).getTime();
+          }
+          
+          // Validate that we got a valid date
+          if (isNaN(expiresAtTime)) {
+            console.error("Invalid OTP expiration date:", otpExpiresAt);
+            setTimeRemaining(0);
+            return;
+          }
+          
+          const remaining = Math.max(0, Math.floor((expiresAtTime - now) / 1000));
+          
+          setTimeRemaining(remaining);
+
+          if (remaining <= 0) {
+            if (countdownIntervalRef.current) {
+              clearInterval(countdownIntervalRef.current);
+              countdownIntervalRef.current = null;
+            }
+            setTimeRemaining(0);
+          }
+        } catch (error) {
+          console.error("Error calculating OTP countdown:", error);
+          setTimeRemaining(0);
+        }
+      };
+
+      // Initial calculation
+      updateCountdown();
+
+      // Update every second
+      countdownIntervalRef.current = setInterval(updateCountdown, 1000);
+
+      // Cleanup on unmount or when step/expiresAt changes
+      return () => {
+        if (countdownIntervalRef.current) {
+          clearInterval(countdownIntervalRef.current);
+          countdownIntervalRef.current = null;
+        }
+      };
+    } else {
+      setTimeRemaining(null);
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current);
+        countdownIntervalRef.current = null;
+      }
+    }
+  }, [step, otpExpiresAt]);
+
+  // Format time remaining as MM:SS
+  const formatTimeRemaining = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
+  };
+
+  // Validate all fields
+  const validateAllFields = (): boolean => {
+    const errors: Record<string, string> = {};
+
+    if (type === "register") {
+      const firstNameError = validateFirstName(formData.first_name);
+      if (firstNameError) errors.first_name = firstNameError;
+
+      const lastNameError = validateLastName(formData.last_name);
+      if (lastNameError) errors.last_name = lastNameError;
+
+      const emailError = validateEmail(formData.email);
+      if (emailError) errors.email = emailError;
+
+      const phoneError = validatePhone(formData.phone, countryCode);
+      if (phoneError) errors.phone = phoneError;
+
+      if (!passwordValidation.isValid) {
+        errors.password = "Password does not meet all requirements";
+      }
+
+      if (formData.password !== formData.confirmPassword) {
+        errors.confirmPassword = "Passwords do not match";
+      }
+    }
+
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  // Handle field blur
+  const handleFieldBlur = (fieldName: string) => {
+    setTouchedFields((prev) => new Set(prev).add(fieldName));
+
+    let error: string | null = null;
+    switch (fieldName) {
+      case "first_name":
+        error = validateFirstName(formData.first_name);
+        break;
+      case "last_name":
+        error = validateLastName(formData.last_name);
+        break;
+      case "email":
+        error = validateEmail(formData.email);
+        break;
+      case "phone":
+        error = validatePhone(formData.phone, countryCode);
+        break;
+    }
+
+    if (error) {
+      setFieldErrors((prev) => ({ ...prev, [fieldName]: error! }));
+    } else {
+      setFieldErrors((prev) => {
+        const newErrors = { ...prev };
+        delete newErrors[fieldName];
+        return newErrors;
+      });
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -54,38 +309,68 @@ const AuthModal: React.FC<AuthModalProps> = ({
 
     try {
       if (type === "register") {
-        // Mock registration flow - will be connected to real API later
-        console.log("📝 Attempting register with:", formData);
+        // Step 1: Send OTP
+        if (step === "form") {
+          console.log("📝 Sending registration OTP...");
 
-        // Validate passwords match
-        if (formData.password !== formData.confirmPassword) {
-          setError("Passwords do not match");
-          setIsLoading(false);
-          return;
-        }
+          // Validate all fields before proceeding
+          if (!validateAllFields()) {
+            setError("Please fix all validation errors before continuing");
+            setIsLoading(false);
+            return;
+          }
 
-        // Simulate registration process
-        const result = await register(
-          formData.first_name,
-          formData.last_name,
-          formData.email,
-          formData.phone,
-          formData.password
-        );
+          // Send OTP
+          const result = await sendRegistrationOtp(
+            formData.first_name,
+            formData.last_name,
+            formData.email
+          );
 
-        if (result.success) {
-          console.log("registration successful");
-          setStep("success");
-          setTimeout(() => {
-            onClose();
-            resetForm();
-            if (onSuccessRedirect) {
-              onSuccessRedirect();
-            }
-          }, 2000);
-        } else {
-          console.error("registration failed:", result.error);
-          setError(result.error || "Registration failed. Please try again.");
+          if (result.success) {
+            console.log("OTP sent successfully");
+            setOtpExpiresAt(result.expiresAt || null);
+            setStep("otp");
+          } else {
+            console.error("Failed to send OTP:", result.error);
+            setError(result.error || "Failed to send OTP. Please try again.");
+          }
+        } 
+        // Step 2: Verify OTP and Register
+        else if (step === "otp") {
+          console.log("📝 Verifying OTP and registering...");
+
+          if (formData.otp.length !== 6) {
+            setError("Please enter a valid 6-digit OTP");
+            setIsLoading(false);
+            return;
+          }
+
+          // Register with OTP (include country code in phone number)
+          const fullPhoneNumber = `${countryCode}${formData.phone}`;
+          const result = await register(
+            formData.first_name,
+            formData.last_name,
+            formData.email,
+            fullPhoneNumber,
+            formData.password,
+            formData.otp
+          );
+
+          if (result.success) {
+            console.log("Registration successful");
+            setStep("success");
+            setTimeout(() => {
+              onClose();
+              resetForm();
+              if (onSuccessRedirect) {
+                onSuccessRedirect();
+              }
+            }, 2000);
+          } else {
+            console.error("Registration failed:", result.error);
+            setError(result.error || "Registration failed. Please try again.");
+          }
         }
       } else {
         // Real login using PHP API
@@ -124,16 +409,34 @@ const AuthModal: React.FC<AuthModalProps> = ({
     }
   };
 
-  const handleOTPVerification = () => {
-    setIsLoading(true);
-    setTimeout(() => {
-      setStep("success");
-      setIsLoading(false);
-      setTimeout(() => {
-        onClose();
-        setStep("form");
-      }, 2000);
-    }, 1500);
+  const handleRegenerateOtp = async () => {
+    if (isRegeneratingOtp) return;
+    
+    setIsRegeneratingOtp(true);
+    setError(null);
+
+    try {
+      const result = await regenerateRegistrationOtp(
+        formData.first_name,
+        formData.last_name,
+        formData.email
+      );
+
+      if (result.success) {
+        setOtpExpiresAt(result.expiresAt || null);
+        setError(null);
+        // Show success message briefly
+        setTimeout(() => {
+          // Clear any error messages
+        }, 2000);
+      } else {
+        setError(result.error || "Failed to regenerate OTP. Please try again.");
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to regenerate OTP");
+    } finally {
+      setIsRegeneratingOtp(false);
+    }
   };
 
   const resetForm = () => {
@@ -149,6 +452,12 @@ const AuthModal: React.FC<AuthModalProps> = ({
     });
     setStep("form");
     setError(null);
+    setOtpExpiresAt(null);
+    setIsRegeneratingOtp(false);
+    setFieldErrors({});
+    setTouchedFields(new Set());
+    setCountryCode("+27");
+    setTimeRemaining(null);
   };
 
   const handleClose = () => {
@@ -208,11 +517,29 @@ const AuthModal: React.FC<AuthModalProps> = ({
                       type="text"
                       required
                       value={formData.first_name}
-                      onChange={(e) =>
-                        setFormData({ ...formData, first_name: e.target.value })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      onChange={(e) => {
+                        setFormData({ ...formData, first_name: e.target.value });
+                        // Clear error when user starts typing
+                        if (fieldErrors.first_name) {
+                          setFieldErrors((prev) => {
+                            const newErrors = { ...prev };
+                            delete newErrors.first_name;
+                            return newErrors;
+                          });
+                        }
+                      }}
+                      onBlur={() => handleFieldBlur("first_name")}
+                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                        touchedFields.has("first_name") && fieldErrors.first_name
+                          ? "border-red-300"
+                          : "border-gray-300"
+                      }`}
                     />
+                    {touchedFields.has("first_name") && fieldErrors.first_name && (
+                      <p className="text-xs text-red-600 mt-1">
+                        {fieldErrors.first_name}
+                      </p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -222,11 +549,28 @@ const AuthModal: React.FC<AuthModalProps> = ({
                       type="text"
                       required
                       value={formData.last_name}
-                      onChange={(e) =>
-                        setFormData({ ...formData, last_name: e.target.value })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      onChange={(e) => {
+                        setFormData({ ...formData, last_name: e.target.value });
+                        if (fieldErrors.last_name) {
+                          setFieldErrors((prev) => {
+                            const newErrors = { ...prev };
+                            delete newErrors.last_name;
+                            return newErrors;
+                          });
+                        }
+                      }}
+                      onBlur={() => handleFieldBlur("last_name")}
+                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                        touchedFields.has("last_name") && fieldErrors.last_name
+                          ? "border-red-300"
+                          : "border-gray-300"
+                      }`}
                     />
+                    {touchedFields.has("last_name") && fieldErrors.last_name && (
+                      <p className="text-xs text-red-600 mt-1">
+                        {fieldErrors.last_name}
+                      </p>
+                    )}
                   </div>
                 </div>
               )}
@@ -234,7 +578,7 @@ const AuthModal: React.FC<AuthModalProps> = ({
               {type === "login" && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Username or Email *
+                    Email *
                   </label>
                   <div className="relative">
                     <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
@@ -246,7 +590,7 @@ const AuthModal: React.FC<AuthModalProps> = ({
                         setFormData({ ...formData, username: e.target.value })
                       }
                       className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="officer123 or email@example.com"
+                      placeholder="email@example.com"
                     />
                   </div>
                 </div>
@@ -263,13 +607,30 @@ const AuthModal: React.FC<AuthModalProps> = ({
                       type="email"
                       required
                       value={formData.email}
-                      onChange={(e) =>
-                        setFormData({ ...formData, email: e.target.value })
-                      }
-                      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      onChange={(e) => {
+                        setFormData({ ...formData, email: e.target.value });
+                        if (fieldErrors.email) {
+                          setFieldErrors((prev) => {
+                            const newErrors = { ...prev };
+                            delete newErrors.email;
+                            return newErrors;
+                          });
+                        }
+                      }}
+                      onBlur={() => handleFieldBlur("email")}
+                      className={`w-full pl-10 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                        touchedFields.has("email") && fieldErrors.email
+                          ? "border-red-300"
+                          : "border-gray-300"
+                      }`}
                       placeholder="your.email@example.com"
                     />
                   </div>
+                  {touchedFields.has("email") && fieldErrors.email && (
+                    <p className="text-xs text-red-600 mt-1">
+                      {fieldErrors.email}
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -278,18 +639,122 @@ const AuthModal: React.FC<AuthModalProps> = ({
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Phone Number *
                   </label>
-                  <div className="relative">
-                    <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
-                    <input
-                      type="tel"
-                      required
-                      value={formData.phone}
-                      onChange={(e) =>
-                        setFormData({ ...formData, phone: e.target.value })
-                      }
-                      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="+27 XX XXX XXXX"
-                    />
+                  <div className="flex gap-2">
+                    {/* Country Code Selector */}
+                    <div className="relative flex-shrink-0">
+                      <select
+                        value={countryCode}
+                        onChange={(e) => {
+                          setCountryCode(e.target.value);
+                          // Clear phone error when country code changes
+                          if (fieldErrors.phone) {
+                            setFieldErrors((prev) => {
+                              const newErrors = { ...prev };
+                              delete newErrors.phone;
+                              return newErrors;
+                            });
+                          }
+                        }}
+                        className="h-10 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-sm font-medium"
+                      >
+                        <option value="+27">🇿🇦 +27</option>
+                        <option value="+1">🇺🇸 +1</option>
+                        <option value="+91">🇮🇳 +91</option>
+                        <option value="+44">🇬🇧 +44</option>
+                        <option value="+61">🇦🇺 +61</option>
+                        <option value="+86">🇨🇳 +86</option>
+                        <option value="+81">🇯🇵 +81</option>
+                        <option value="+49">🇩🇪 +49</option>
+                        <option value="+33">🇫🇷 +33</option>
+                        <option value="+39">🇮🇹 +39</option>
+                        <option value="+34">🇪🇸 +34</option>
+                        <option value="+31">🇳🇱 +31</option>
+                        <option value="+32">🇧🇪 +32</option>
+                        <option value="+41">🇨🇭 +41</option>
+                        <option value="+46">🇸🇪 +46</option>
+                        <option value="+47">🇳🇴 +47</option>
+                        <option value="+45">🇩🇰 +45</option>
+                        <option value="+358">🇫🇮 +358</option>
+                        <option value="+351">🇵🇹 +351</option>
+                        <option value="+353">🇮🇪 +353</option>
+                        <option value="+30">🇬🇷 +30</option>
+                        <option value="+48">🇵🇱 +48</option>
+                        <option value="+420">🇨🇿 +420</option>
+                        <option value="+36">🇭🇺 +36</option>
+                        <option value="+40">🇷🇴 +40</option>
+                        <option value="+7">🇷🇺 +7</option>
+                        <option value="+971">🇦🇪 +971</option>
+                        <option value="+966">🇸🇦 +966</option>
+                        <option value="+974">🇶🇦 +974</option>
+                        <option value="+965">🇰🇼 +965</option>
+                        <option value="+973">🇧🇭 +973</option>
+                        <option value="+968">🇴🇲 +968</option>
+                        <option value="+961">🇱🇧 +961</option>
+                        <option value="+962">🇯🇴 +962</option>
+                        <option value="+972">🇮🇱 +972</option>
+                        <option value="+20">🇪🇬 +20</option>
+                        <option value="+234">🇳🇬 +234</option>
+                        <option value="+254">🇰🇪 +254</option>
+                        <option value="+233">🇬🇭 +233</option>
+                        <option value="+256">🇺🇬 +256</option>
+                        <option value="+255">🇹🇿 +255</option>
+                        <option value="+250">🇷🇼 +250</option>
+                        <option value="+251">🇪🇹 +251</option>
+                        <option value="+212">🇲🇦 +212</option>
+                        <option value="+213">🇩🇿 +213</option>
+                        <option value="+216">🇹🇳 +216</option>
+                        <option value="+218">🇱🇾 +218</option>
+                        <option value="+249">🇸🇩 +249</option>
+                        <option value="+260">🇿🇲 +260</option>
+                        <option value="+263">🇿🇼 +263</option>
+                        <option value="+258">🇲🇿 +258</option>
+                        <option value="+265">🇲🇼 +265</option>
+                        <option value="+267">🇧🇼 +267</option>
+                        <option value="+268">🇸🇿 +268</option>
+                        <option value="+266">🇱🇸 +266</option>
+                        <option value="+264">🇳🇦 +264</option>
+                      </select>
+                    </div>
+                    {/* Phone Number Input */}
+                    <div className="relative flex-1">
+                      <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+                      <input
+                        type="tel"
+                        required
+                        value={formData.phone}
+                        onChange={(e) => {
+                          // Only allow digits
+                          const value = e.target.value.replace(/\D/g, '');
+                          setFormData({ ...formData, phone: value });
+                          if (fieldErrors.phone) {
+                            setFieldErrors((prev) => {
+                              const newErrors = { ...prev };
+                              delete newErrors.phone;
+                              return newErrors;
+                            });
+                          }
+                        }}
+                        onBlur={() => handleFieldBlur("phone")}
+                        className={`w-full pl-10 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                          touchedFields.has("phone") && fieldErrors.phone
+                            ? "border-red-300"
+                            : "border-gray-300"
+                        }`}
+                        placeholder="Enter phone number"
+                      />
+                    </div>
+                  </div>
+                  <div className="mt-1 flex items-center justify-between">
+                    <div className="flex-1">
+                      {touchedFields.has("phone") && fieldErrors.phone && (
+                        <p className="text-xs text-red-600">
+                          {fieldErrors.phone}
+                        </p>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      Full: {countryCode} {formData.phone || "..."}
+                    </p>
                   </div>
                 </div>
               )}
@@ -304,10 +769,31 @@ const AuthModal: React.FC<AuthModalProps> = ({
                     type={showPassword ? "text" : "password"}
                     required
                     value={formData.password}
-                    onChange={(e) =>
-                      setFormData({ ...formData, password: e.target.value })
-                    }
-                    className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    onChange={(e) => {
+                      setFormData({ ...formData, password: e.target.value });
+                      setTouchedFields((prev) => new Set(prev).add("password"));
+                      if (fieldErrors.password) {
+                        setFieldErrors((prev) => {
+                          const newErrors = { ...prev };
+                          delete newErrors.password;
+                          return newErrors;
+                        });
+                      }
+                    }}
+                    onBlur={() => {
+                      setTouchedFields((prev) => new Set(prev).add("password"));
+                      if (!passwordValidation.isValid) {
+                        setFieldErrors((prev) => ({
+                          ...prev,
+                          password: "Password does not meet all requirements",
+                        }));
+                      }
+                    }}
+                    className={`w-full pl-10 pr-10 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      touchedFields.has("password") && fieldErrors.password
+                        ? "border-red-300"
+                        : "border-gray-300"
+                    }`}
                     placeholder="Enter your password"
                   />
                   <button
@@ -322,6 +808,101 @@ const AuthModal: React.FC<AuthModalProps> = ({
                     )}
                   </button>
                 </div>
+                {/* Password Requirements Checklist */}
+                {type === "register" && (
+                  <div className="mt-2 bg-gray-50 p-3 rounded-lg">
+                    <p className="text-xs font-medium text-gray-700 mb-2">
+                      Password Requirements:
+                    </p>
+                    <div className="space-y-1.5">
+                      <div className="flex items-center text-xs">
+                        {passwordValidation.checks.minLength ? (
+                          <Check className="h-4 w-4 text-green-600 mr-2 flex-shrink-0" />
+                        ) : (
+                          <XCircle className="h-4 w-4 text-gray-400 mr-2 flex-shrink-0" />
+                        )}
+                        <span
+                          className={
+                            passwordValidation.checks.minLength
+                              ? "text-green-700"
+                              : "text-gray-600"
+                          }
+                        >
+                          At least 8 characters long
+                        </span>
+                      </div>
+                      <div className="flex items-center text-xs">
+                        {passwordValidation.checks.hasUpperCase ? (
+                          <Check className="h-4 w-4 text-green-600 mr-2 flex-shrink-0" />
+                        ) : (
+                          <XCircle className="h-4 w-4 text-gray-400 mr-2 flex-shrink-0" />
+                        )}
+                        <span
+                          className={
+                            passwordValidation.checks.hasUpperCase
+                              ? "text-green-700"
+                              : "text-gray-600"
+                          }
+                        >
+                          Include uppercase letter
+                        </span>
+                      </div>
+                      <div className="flex items-center text-xs">
+                        {passwordValidation.checks.hasLowerCase ? (
+                          <Check className="h-4 w-4 text-green-600 mr-2 flex-shrink-0" />
+                        ) : (
+                          <XCircle className="h-4 w-4 text-gray-400 mr-2 flex-shrink-0" />
+                        )}
+                        <span
+                          className={
+                            passwordValidation.checks.hasLowerCase
+                              ? "text-green-700"
+                              : "text-gray-600"
+                          }
+                        >
+                          Include lowercase letter
+                        </span>
+                      </div>
+                      <div className="flex items-center text-xs">
+                        {passwordValidation.checks.hasNumber ? (
+                          <Check className="h-4 w-4 text-green-600 mr-2 flex-shrink-0" />
+                        ) : (
+                          <XCircle className="h-4 w-4 text-gray-400 mr-2 flex-shrink-0" />
+                        )}
+                        <span
+                          className={
+                            passwordValidation.checks.hasNumber
+                              ? "text-green-700"
+                              : "text-gray-600"
+                          }
+                        >
+                          Include at least one number
+                        </span>
+                      </div>
+                      <div className="flex items-center text-xs">
+                        {passwordValidation.checks.hasSpecialChar ? (
+                          <Check className="h-4 w-4 text-green-600 mr-2 flex-shrink-0" />
+                        ) : (
+                          <XCircle className="h-4 w-4 text-gray-400 mr-2 flex-shrink-0" />
+                        )}
+                        <span
+                          className={
+                            passwordValidation.checks.hasSpecialChar
+                              ? "text-green-700"
+                              : "text-gray-600"
+                          }
+                        >
+                          Include at least one special character
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {touchedFields.has("password") && fieldErrors.password && (
+                  <p className="text-xs text-red-600 mt-1">
+                    {fieldErrors.password}
+                  </p>
+                )}
               </div>
 
               {type === "register" && (
@@ -335,43 +916,74 @@ const AuthModal: React.FC<AuthModalProps> = ({
                       type="password"
                       required
                       value={formData.confirmPassword}
-                      onChange={(e) =>
+                      onChange={(e) => {
                         setFormData({
                           ...formData,
                           confirmPassword: e.target.value,
-                        })
-                      }
-                      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        });
+                        setTouchedFields((prev) =>
+                          new Set(prev).add("confirmPassword")
+                        );
+                        if (fieldErrors.confirmPassword) {
+                          setFieldErrors((prev) => {
+                            const newErrors = { ...prev };
+                            delete newErrors.confirmPassword;
+                            return newErrors;
+                          });
+                        }
+                      }}
+                      onBlur={() => {
+                        setTouchedFields((prev) =>
+                          new Set(prev).add("confirmPassword")
+                        );
+                        if (formData.password !== formData.confirmPassword) {
+                          setFieldErrors((prev) => ({
+                            ...prev,
+                            confirmPassword: "Passwords do not match",
+                          }));
+                        }
+                      }}
+                      className={`w-full pl-10 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                        touchedFields.has("confirmPassword") &&
+                        fieldErrors.confirmPassword
+                          ? "border-red-300"
+                          : "border-gray-300"
+                      }`}
                       placeholder="Confirm your password"
                     />
                   </div>
-                </div>
-              )}
-
-              {type === "register" && (
-                <div className="text-xs text-gray-600 bg-blue-50 p-3 rounded-lg">
-                  <p className="font-medium mb-1">Password Requirements:</p>
-                  <ul className="list-disc list-inside space-y-1">
-                    <li>At least 8 characters long</li>
-                    <li>Include uppercase and lowercase letters</li>
-                    <li>Include at least one number</li>
-                    <li>Include at least one special character</li>
-                  </ul>
+                  {touchedFields.has("confirmPassword") &&
+                    fieldErrors.confirmPassword && (
+                      <p className="text-xs text-red-600 mt-1">
+                        {fieldErrors.confirmPassword}
+                      </p>
+                    )}
                 </div>
               )}
 
               <button
                 type="submit"
-                disabled={isLoading}
-                className="w-full py-3 bg-saffron hover:bg-orange-600 disabled:bg-gray-300 text-white font-semibold rounded-lg transition-colors flex items-center justify-center"
+                disabled={
+                  isLoading ||
+                  (type === "register" &&
+                    step === "form" &&
+                    !passwordValidation.isValid)
+                }
+                className="w-full py-3 bg-saffron hover:bg-orange-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors flex items-center justify-center"
               >
                 {isLoading ? (
                   <>
                     <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                    {type === "login" ? "Signing In..." : "Creating Account..."}
+                    {type === "login" 
+                      ? "Signing In..." 
+                      : step === "form" 
+                        ? "Send Verification Code" 
+                        : "Creating Account..."}
                   </>
                 ) : type === "login" ? (
                   "Sign In"
+                ) : step === "form" ? (
+                  "Send Verification Code"
                 ) : (
                   "Create Account"
                 )}
@@ -382,54 +994,110 @@ const AuthModal: React.FC<AuthModalProps> = ({
           {step === "otp" && (
             <div className="text-center space-y-4">
               <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto">
-                <Phone className="h-8 w-8 text-blue-600" />
+                <Mail className="h-8 w-8 text-blue-600" />
               </div>
               <div>
                 <h3 className="text-lg font-semibold text-gray-800">
-                  Verify Your Account
+                  Verify Your Email
                 </h3>
-                <p className="text-gray-600 text-sm">
-                  We've sent a verification code to your email and phone number
+                <p className="text-gray-600 text-sm mt-1">
+                  We've sent a 6-digit verification code to
                 </p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Enter Verification Code
-                </label>
-                <input
-                  type="text"
-                  value={formData.otp}
-                  onChange={(e) =>
-                    setFormData({ ...formData, otp: e.target.value })
-                  }
-                  className="w-full px-4 py-3 text-center text-lg border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="000000"
-                  maxLength={6}
-                />
-              </div>
-
-              <button
-                onClick={handleOTPVerification}
-                disabled={isLoading || formData.otp.length !== 6}
-                className="w-full py-3 bg-saffron hover:bg-orange-600 disabled:bg-gray-300 text-white font-semibold rounded-lg transition-colors"
-              >
-                {isLoading ? (
-                  <>
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2 inline-block"></div>
-                    Verifying...
-                  </>
-                ) : (
-                  "Verify Account"
+                <p className="text-gray-800 font-medium mt-1">
+                  {formData.email}
+                </p>
+                {timeRemaining !== null && (
+                  <div className="mt-2">
+                    {timeRemaining > 0 ? (
+                      <p className="text-xs text-gray-600">
+                        Code expires in:{" "}
+                        <span
+                          className={`font-semibold ${
+                            timeRemaining <= 60
+                              ? "text-red-600"
+                              : timeRemaining <= 180
+                              ? "text-orange-600"
+                              : "text-gray-700"
+                          }`}
+                        >
+                          {formatTimeRemaining(timeRemaining)}
+                        </span>
+                      </p>
+                    ) : (
+                      <p className="text-xs text-red-600 font-medium">
+                        OTP has expired. Please request a new one.
+                      </p>
+                    )}
+                  </div>
                 )}
-              </button>
+              </div>
 
-              <button
-                onClick={() => setStep("form")}
-                className="text-blue-600 hover:text-blue-800 text-sm"
-              >
-                Back to form
-              </button>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Enter Verification Code
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.otp}
+                    onChange={(e) => {
+                      // Only allow numbers
+                      const value = e.target.value.replace(/\D/g, '');
+                      setFormData({ ...formData, otp: value.slice(0, 6) });
+                    }}
+                    className="w-full px-4 py-3 text-center text-lg border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent tracking-widest"
+                    placeholder="000000"
+                    maxLength={6}
+                    pattern="[0-9]{6}"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={
+                    isLoading ||
+                    formData.otp.length !== 6 ||
+                    (timeRemaining !== null && timeRemaining <= 0)
+                  }
+                  className="w-full py-3 bg-saffron hover:bg-orange-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors"
+                >
+                  {isLoading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2 inline-block"></div>
+                      Verifying & Creating Account...
+                    </>
+                  ) : (
+                    "Verify & Create Account"
+                  )}
+                </button>
+
+                <div className="flex items-center justify-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleRegenerateOtp}
+                    disabled={isRegeneratingOtp}
+                    className="text-blue-600 hover:text-blue-800 text-sm font-medium disabled:text-gray-400"
+                  >
+                    {isRegeneratingOtp ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 inline-block mr-1"></div>
+                        Sending...
+                      </>
+                    ) : (
+                      "Resend OTP"
+                    )}
+                  </button>
+                  <span className="text-gray-300">|</span>
+                  <button
+                    type="button"
+                    onClick={() => setStep("form")}
+                    className="text-blue-600 hover:text-blue-800 text-sm"
+                  >
+                    Back to form
+                  </button>
+                </div>
+              </form>
             </div>
           )}
 

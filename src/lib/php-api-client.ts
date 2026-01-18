@@ -245,11 +245,70 @@ class PHPAPIClient {
     localStorage.removeItem("auth_token");
   }
 
+  /**
+   * Send registration OTP
+   */
+  async sendRegistrationOtp(
+    email: string,
+    firstName: string,
+    lastName: string
+  ): Promise<{ success: boolean; message?: string; expiresAt?: string; error?: string }> {
+    const { data } = await this.request<any>("/auth/send-registration-otp", {
+      method: "POST",
+      body: JSON.stringify({ email, firstName, lastName }),
+    });
+    return data;
+  }
+
+  /**
+   * Regenerate registration OTP
+   */
+  async regenerateRegistrationOtp(
+    email: string,
+    firstName: string,
+    lastName: string
+  ): Promise<{ success: boolean; message?: string; expiresAt?: string; error?: string }> {
+    const { data } = await this.request<any>("/auth/regenerate-registration-otp", {
+      method: "POST",
+      body: JSON.stringify({ email, firstName, lastName }),
+    });
+    return data;
+  }
+
+  /**
+   * Register a new user (with OTP verification)
+   */
+  async register(
+    first_name: string,
+    last_name: string,
+    email: string,
+    phone: string,
+    password: string,
+    otp: string
+  ): Promise<any> {
+    const { data } = await this.request<any>("/auth/register", {
+      method: "POST",
+      body: JSON.stringify({
+        firstName: first_name,
+        lastName: last_name,
+        email,
+        phoneNo: phone,
+        password,
+        otp,
+      }),
+    });
+    return data;
+  }
+
   /* --------------------------------------------------------------- */
   /* Services                                                        */
   /* --------------------------------------------------------------- */
   async getServices(): Promise<any> {
     return this.request<any>("/booking/services");
+  }
+
+  async getCategories(): Promise<any> {
+    return this.request<any>("/services/categories");
   }
 
   async getCentersForService(serviceId: string): Promise<any> {

@@ -24,17 +24,28 @@ interface AuthContextType {
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (
-    type: string,
+  sendRegistrationOtp: (
+    first_name: string,
+    last_name: string,
     email: string,
-    password: string
-  ) => Promise<{ success: boolean; error?: string }>;
+  ) => Promise<{ success: boolean; error?: string; expiresAt?: string }>;
+  regenerateRegistrationOtp: (
+    first_name: string,
+    last_name: string,
+    email: string,
+  ) => Promise<{ success: boolean; error?: string; expiresAt?: string }>;
   register: (
     first_name: string,
     last_name: string,
     email: string,
+    phone: string,
     password: string,
-    phone: string
+    otp: string,
+  ) => Promise<{ success: boolean; error?: string }>;
+  login: (
+    type: string,
+    email: string,
+    password: string
   ) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   refreshUser: () => void;
@@ -77,24 +88,105 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     initializeAuth();
   }, []);
 
+  const sendRegistrationOtp = async (
+    first_name: string,
+    last_name: string,
+    email: string,
+  ): Promise<{ success: boolean; error?: string; expiresAt?: string }> => {
+    try {
+      setIsLoading(true);
+      console.log(" AuthContext: Sending registration OTP...");
+
+      const response = await phpAPI.sendRegistrationOtp(email, first_name, last_name);
+
+      if (response.success) {
+        console.log(" AuthContext: OTP sent successfully");
+        return { success: true, expiresAt: response.expiresAt };
+      } else {
+        console.error(" AuthContext: Failed to send OTP", response.error);
+        return {
+          success: false,
+          error: response.error || "Failed to send OTP. Please try again.",
+        };
+      }
+    } catch (error: any) {
+      console.error(" AuthContext: Send OTP error", error);
+
+      let errorMessage =
+        "Unable to connect to the server. Please try again later.";
+
+      if (error.message?.includes("fetch")) {
+        errorMessage =
+          "Cannot connect to authentication server. Please ensure the backend is running.";
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
+      return { success: false, error: errorMessage };
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const regenerateRegistrationOtp = async (
+    first_name: string,
+    last_name: string,
+    email: string,
+  ): Promise<{ success: boolean; error?: string; expiresAt?: string }> => {
+    try {
+      setIsLoading(true);
+      console.log(" AuthContext: Regenerating registration OTP...");
+
+      const response = await phpAPI.regenerateRegistrationOtp(email, first_name, last_name);
+
+      if (response.success) {
+        console.log(" AuthContext: OTP regenerated successfully");
+        return { success: true, expiresAt: response.expiresAt };
+      } else {
+        console.error(" AuthContext: Failed to regenerate OTP", response.error);
+        return {
+          success: false,
+          error: response.error || "Failed to regenerate OTP. Please try again.",
+        };
+      }
+    } catch (error: any) {
+      console.error(" AuthContext: Regenerate OTP error", error);
+
+      let errorMessage =
+        "Unable to connect to the server. Please try again later.";
+
+      if (error.message?.includes("fetch")) {
+        errorMessage =
+          "Cannot connect to authentication server. Please ensure the backend is running.";
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
+      return { success: false, error: errorMessage };
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const register = async (
     first_name: string,
     last_name: string,
     email: string,
     phone: string,
     password: string,
+    otp: string,
   ): Promise<{ success: boolean; error?: string }> => {
     try {
       setIsLoading(true);
-      console.log(" AuthContext: Initiating registration...");
-
+      console.log(" AuthContext: Initiating registration with OTP...");
 
       const response = await phpAPI.register(
         first_name,
         last_name,
         email,
         phone,
-        password
+        password,
+        otp
       );
 
       if (response.success) {
@@ -196,6 +288,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     token,
     isAuthenticated: !!user && !!token,
     isLoading,
+    sendRegistrationOtp,
+    regenerateRegistrationOtp,
     login,
     register,
     logout,

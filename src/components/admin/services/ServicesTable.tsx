@@ -95,7 +95,7 @@ export default function ServicesTable({
                   <td className="px-6 py-4 text-sm">
                     {Array.isArray(s.fees)
                       ? s.fees
-                          .map((f) => `${f.type}: $${f.amount}`)
+                          .map((f) => `${f.type}: R ${f.amount}`)
                           .join(", ")
                       : Object.entries(s.fees ?? {})
                           .map(([k, v]) => `${k}: $${v}`)

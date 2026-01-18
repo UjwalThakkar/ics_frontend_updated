@@ -17,6 +17,12 @@ import {
   HandCoins,
 } from "lucide-react";
 
+interface DocumentRequirement {
+  name: string;
+  alternatives?: string[];
+  note?: string;
+}
+
 interface Service {
   id?: string; // Adjust based on API
   serviceId?: string;
@@ -30,7 +36,7 @@ interface Service {
     amount: number;
     currency: string;
   }>;
-  required_documents: string[];
+  required_documents: string[] | DocumentRequirement[]; // Support both old and new format
   eligibility_requirements: string[];
   isActive: boolean;
 }
@@ -40,6 +46,22 @@ interface ServiceDetailsProps {
 }
 const ServiceDetails: React.FC<ServiceDetailsProps> = ({ service }) => {
   console.log("prop value", service);
+  
+  // Normalize required_documents to handle both old format (string[]) and new format (DocumentRequirement[])
+  const normalizeDocuments = (docs: string[] | DocumentRequirement[]): DocumentRequirement[] => {
+    if (!docs || docs.length === 0) return [];
+    
+    // Check if first item is a string (old format)
+    if (typeof docs[0] === 'string') {
+      return (docs as string[]).map((doc: string) => ({ name: doc }));
+    }
+    
+    // New format (array of objects)
+    return docs as DocumentRequirement[];
+  };
+
+  const normalizedDocs = normalizeDocuments(service.required_documents || []);
+  
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -113,10 +135,23 @@ const ServiceDetails: React.FC<ServiceDetailsProps> = ({ service }) => {
               </h2>
 
               <div className="space-y-3">
-                {service.required_documents.map((doc, index) => (
+                {normalizedDocs.map((doc, index) => (
                   <div key={index} className="flex items-start space-x-3">
                     <CheckCircle className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
-                    <span className="text-gray-700">{doc}</span>
+                    <div className="flex-1">
+                      <span className="text-gray-700 font-medium">{doc.name}</span>
+                      {doc.alternatives && doc.alternatives.length > 0 && (
+                        <div className="mt-1 ml-4 text-sm text-gray-600">
+                          <span className="text-gray-500">Alternatives: </span>
+                          {doc.alternatives.join(', ')}
+                        </div>
+                      )}
+                      {doc.note && (
+                        <div className="mt-1 ml-4 text-sm text-blue-600 italic">
+                          {doc.note}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
